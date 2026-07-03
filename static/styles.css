@@ -204,6 +204,10 @@ button {
   padding: 14px 22px 0;
 }
 
+.details-panel.is-hidden {
+  display: none;
+}
+
 .options-panel.is-hidden {
   display: none;
 }
@@ -269,19 +273,60 @@ button {
 
 .status-icon.is-scanning {
   position: relative;
-  justify-content: flex-start;
   overflow: hidden;
+}
+
+.status-icon.is-scanning .scan-corner {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-color: #08101f;
+  border-style: solid;
+  border-width: 0;
+}
+
+.scan-corner-tl {
+  top: 2px;
+  left: 2px;
+  border-top-width: 3px;
+  border-left-width: 3px;
+  border-radius: 5px 0 0;
+}
+
+.scan-corner-tr {
+  top: 2px;
+  right: 2px;
+  border-top-width: 3px;
+  border-right-width: 3px;
+  border-radius: 0 5px 0 0;
+}
+
+.scan-corner-bl {
+  bottom: 2px;
+  left: 2px;
+  border-bottom-width: 3px;
+  border-left-width: 3px;
+  border-radius: 0 0 0 5px;
+}
+
+.scan-corner-br {
+  right: 2px;
+  bottom: 2px;
+  border-right-width: 3px;
+  border-bottom-width: 3px;
+  border-radius: 0 0 5px;
 }
 
 .status-icon.is-scanning .scan-file {
   position: absolute;
-  left: -9px;
+  top: 6px;
+  left: -15px;
   display: block;
   width: 14px;
   height: 18px;
   color: var(--blue);
   background: transparent;
-  animation: scan-file 1.25s linear infinite;
+  animation: scan-file 1.45s ease-in-out infinite;
 }
 
 .status-icon.is-scanning .scan-file svg {
@@ -295,16 +340,27 @@ button {
   stroke-linejoin: round;
 }
 
-.status-icon.is-scanning .scan-file:nth-child(1) {
-  animation-delay: 0s;
+.status-icon.is-scanning .scan-glass {
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  display: block;
+  width: 16px;
+  height: 16px;
+  color: #cf1e2e;
+  background: transparent;
+  animation: scan-glass 0.42s ease-in-out infinite;
 }
 
-.status-icon.is-scanning .scan-file:nth-child(2) {
-  animation-delay: 0.18s;
-}
-
-.status-icon.is-scanning .scan-file:nth-child(3) {
-  animation-delay: 0.36s;
+.status-icon.is-scanning .scan-glass svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .status-icon.is-complete {
@@ -346,14 +402,37 @@ button {
     transform: translateX(0);
   }
 
-  12%,
-  88% {
+  15% {
+    opacity: 1;
+  }
+
+  55% {
+    opacity: 1;
+    transform: translateX(15px);
+  }
+
+  85% {
     opacity: 1;
   }
 
   100% {
     opacity: 0;
-    transform: translateX(31px);
+    transform: translateX(42px);
+  }
+}
+
+@keyframes scan-glass {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+
+  35% {
+    transform: translate(1px, -1px) rotate(-5deg);
+  }
+
+  70% {
+    transform: translate(-1px, 1px) rotate(4deg);
   }
 }
 

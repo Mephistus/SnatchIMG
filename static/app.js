@@ -1,6 +1,7 @@
 const urlInput = document.querySelector("#urlInput");
 const snatchButton = document.querySelector("#snatchButton");
-const logToggleButton = document.querySelector("#logToggleButton");
+const detailsToggleButton = document.querySelector("#detailsToggleButton");
+const detailsPanel = document.querySelector("#detailsPanel");
 const maxPagesInput = document.querySelector("#maxPagesInput");
 const deepInput = document.querySelector("#deepInput");
 const linksOnlyInput = document.querySelector("#linksOnlyInput");
@@ -81,6 +82,10 @@ function setStatusIcon(state) {
   statusIcon.className = `status-icon is-${state}`;
   if (state === "scanning") {
     statusIcon.innerHTML = `
+      <span class="scan-corner scan-corner-tl"></span>
+      <span class="scan-corner scan-corner-tr"></span>
+      <span class="scan-corner scan-corner-bl"></span>
+      <span class="scan-corner scan-corner-br"></span>
       <span class="scan-file">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M5 3h14v18H5z" />
@@ -88,18 +93,10 @@ function setStatusIcon(state) {
           <circle cx="15.5" cy="8.5" r="1.4" />
         </svg>
       </span>
-      <span class="scan-file">
+      <span class="scan-glass">
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M5 3h14v18H5z" />
-          <path d="M8 15l3-4 2 3 2-2 2 3" />
-          <circle cx="15.5" cy="8.5" r="1.4" />
-        </svg>
-      </span>
-      <span class="scan-file">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M5 3h14v18H5z" />
-          <path d="M8 15l3-4 2 3 2-2 2 3" />
-          <circle cx="15.5" cy="8.5" r="1.4" />
+          <circle cx="10" cy="10" r="5.2" />
+          <path d="m14 14 5 5" />
         </svg>
       </span>
     `;
@@ -288,11 +285,14 @@ urlInput.addEventListener("keydown", (event) => {
   }
 });
 
-logToggleButton.addEventListener("click", () => {
-  const isHidden = logSection.classList.toggle("is-hidden");
-  logToggleButton.classList.toggle("is-collapsed", isHidden);
-  logToggleButton.setAttribute("aria-expanded", String(!isHidden));
-  logToggleButton.title = isHidden ? "Show progress log" : "Hide progress log";
+detailsToggleButton.addEventListener("click", () => {
+  const isHidden = detailsPanel.classList.toggle("is-hidden");
+  logSection.classList.toggle("is-hidden", isHidden);
+  detailsToggleButton.classList.toggle("is-collapsed", isHidden);
+  detailsToggleButton.setAttribute("aria-expanded", String(!isHidden));
+  detailsToggleButton.title = isHidden
+    ? "Show options and progress log"
+    : "Hide options and progress log";
 });
 
 clearLogButton.addEventListener("click", () => {

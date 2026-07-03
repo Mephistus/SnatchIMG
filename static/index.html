@@ -4,12 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SnatchIMG</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260703e" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260703i" />
   </head>
   <body>
     <main class="app-shell">
       <header class="brand">
-        <img class="brand-mark" src="/static/snatchimg-icon.svg" alt="" aria-hidden="true" />
+        <img class="brand-mark" src="/static/snatchicon.png" alt="" aria-hidden="true" />
 
         <div class="brand-copy">
           <h1>Snatch<span>IMG</span></h1>
@@ -35,27 +35,29 @@
           <span>Snatch Images</span>
         </button>
 
-        <button class="icon-button" id="logToggleButton" type="button" title="Hide progress log" aria-expanded="true">
+        <button class="icon-button is-collapsed" id="detailsToggleButton" type="button" title="Show options and progress log" aria-expanded="false">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="m6 15 6-6 6 6" />
           </svg>
         </button>
       </section>
 
-      <section class="options-panel" id="optionsPanel" aria-label="Options">
-        <label>
-          <span>Max pages</span>
-          <input id="maxPagesInput" type="number" min="1" value="200" />
-        </label>
-        <label class="toggle">
-          <input id="deepInput" type="checkbox" checked />
-          <span>Deep</span>
-        </label>
-        <label class="toggle">
-          <input id="linksOnlyInput" type="checkbox" checked />
-          <span>Links only</span>
-        </label>
-      </section>
+      <div class="details-panel is-hidden" id="detailsPanel">
+        <section class="options-panel" id="optionsPanel" aria-label="Options">
+          <label>
+            <span>Max pages</span>
+            <input id="maxPagesInput" type="number" min="1" value="200" />
+          </label>
+          <label class="toggle">
+            <input id="deepInput" type="checkbox" checked />
+            <span>Deep</span>
+          </label>
+          <label class="toggle">
+            <input id="linksOnlyInput" type="checkbox" checked />
+            <span>Links only</span>
+          </label>
+        </section>
+      </div>
 
       <section class="progress-section" aria-label="Download progress">
         <div class="status-line">
@@ -78,7 +80,7 @@
         </div>
       </section>
 
-      <section class="log-section" id="logSection" aria-label="Progress log">
+      <section class="log-section is-hidden" id="logSection" aria-label="Progress log">
         <div class="log-header">
           <div>
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -116,6 +118,6 @@
 
     <footer>SnatchIMG @2026. All Rights Reserved Hexazon</footer>
 
-    <script src="/static/app.js?v=20260703e"></script>
+    <script src="/static/app.js?v=20260703i"></script>
   </body>
 </html>
