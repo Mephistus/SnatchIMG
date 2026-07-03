@@ -17,6 +17,8 @@ const zipButton = document.querySelector("#zipButton");
 let pollTimer = null;
 let currentJobId = null;
 let isRunning = false;
+let currentPhaseBase = "Waiting...";
+let latestLogMessage = "";
 
 const snatchMarkup = `
   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -105,6 +107,26 @@ function setStatusIcon(state) {
     return;
   }
 
+  if (state === "error") {
+    statusIcon.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M8 8l8 8" />
+        <path d="M16 8l-8 8" />
+      </svg>
+    `;
+    return;
+  }
+
+  if (state === "working") {
+    statusIcon.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle class="spinner-ring" cx="12" cy="12" r="9" />
+      </svg>
+    `;
+    return;
+  }
+
   statusIcon.innerHTML = "<span></span><span></span><span></span>";
 }
 
@@ -127,9 +149,39 @@ function setStatusFromJob(job) {
   setStatusIcon("working");
 }
 
+function getLatestLogMessage(lines) {
+  if (!lines || lines.length === 0) {
+    return "";
+  }
+
+  const latestLine = lines[lines.length - 1];
+  const [, ...rest] = latestLine.split("  ");
+  let message = rest.join("  ").trim();
+  if (!message) {
+    message = latestLine.trim();
+  }
+  return message.replace(/\.[\s]*$/, "");
+}
+
+function updatePhaseText(phase) {
+  currentPhaseBase = String(phase).replace(/\s*\([^)]*\)$/, "").trim();
+
+  if (!latestLogMessage) {
+    phaseText.textContent = currentPhaseBase;
+    return;
+  }
+
+  phaseText.innerHTML = `${escapeHtml(currentPhaseBase)} <span class="phase-detail">(${escapeHtml(
+    latestLogMessage
+  )})</span>`;
+}
+
 function renderLogs(lines) {
+  latestLogMessage = getLatestLogMessage(lines);
+
   if (!lines || lines.length === 0) {
     logBox.innerHTML = '<p class="muted">Ready.</p>';
+    updatePhaseText(currentPhaseBase);
     return;
   }
 
@@ -141,6 +193,7 @@ function renderLogs(lines) {
     })
     .join("");
   logBox.scrollTop = logBox.scrollHeight;
+  updatePhaseText(currentPhaseBase);
 }
 
 function escapeHtml(value) {
@@ -174,16 +227,16 @@ async function startJob() {
   }
 
   if (!isValidUrl(url)) {
-    setStatusIcon("waiting");
-    phaseText.textContent = "Failed (Invalid URL)";
-    renderLogs(["Now  Failed (Invalid URL)."]);
+    setStatusIcon("error");
+    updatePhaseText("Failed");
+    renderLogs(["Now  Invalid URL."]);
     return;
   }
 
   currentJobId = null;
   setRunningState(true);
   setStatusIcon("working");
-  phaseText.textContent = "Starting...";
+  updatePhaseText("Starting...");
   setProgress(0, 0, 0);
   setZipReady(null);
   renderLogs(["Now  Starting job."]);
@@ -221,7 +274,7 @@ async function requestStop() {
   }
 
   snatchButton.disabled = true;
-  phaseText.textContent = "Stopping...";
+  updatePhaseText("Stopping...");
   await fetch(`/api/jobs/${currentJobId}/cancel`, { method: "POST" });
 }
 
@@ -232,7 +285,7 @@ async function pollJob(jobId) {
     const response = await fetch(`/api/jobs/${jobId}`);
     const job = await response.json();
 
-    phaseText.textContent = job.phase || "Working...";
+    updatePhaseText(job.phase || "Working...");
     setProgress(job.progress, job.saved, job.total);
     setStatusFromJob(job);
     renderLogs(job.logs);
@@ -258,9 +311,9 @@ async function pollJob(jobId) {
       clearInterval(pollTimer);
       currentJobId = null;
       setRunningState(false);
-      setStatusIcon("waiting");
+      setStatusIcon("error");
       setZipReady(null);
-      phaseText.textContent = "Failed";
+      updatePhaseText("Failed");
     }
   }
 
@@ -273,7 +326,7 @@ snatchButton.addEventListener("click", () => {
     currentJobId = null;
     setRunningState(false);
     setStatusIcon("waiting");
-    phaseText.textContent = "Failed";
+    updatePhaseText("Failed");
     renderLogs([`Now  ${error.message}`]);
   });
 });

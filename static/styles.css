@@ -255,17 +255,39 @@ button {
   flex: 0 0 auto;
 }
 
-.status-icon.is-waiting span,
-.status-icon.is-working span,
-.status-icon.is-scanning span {
+.phase-detail {
+  color: #9ba3b2;
+}
+
+.status-icon.is-waiting span {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--red);
 }
 
-.status-icon.is-working span,
+.status-icon.is-working svg {
+  width: 27px;
+  height: 27px;
+  fill: none;
+}
+
+.status-icon.is-working svg .spinner-ring {
+  stroke: var(--blue);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-dasharray: 56;
+  stroke-dashoffset: 20;
+  opacity: 1;
+  transform-origin: center center;
+  animation: spinner-rotate 1s linear infinite;
+}
+
 .status-icon.is-scanning span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--red);
   animation: status-dot 1s ease-in-out infinite;
 }
 
@@ -296,6 +318,33 @@ button {
   stroke-width: 3;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+@keyframes spinner-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.status-icon.is-error svg {
+  width: 27px;
+  height: 27px;
+}
+
+.status-icon.is-error svg circle {
+  fill: var(--red);
+  stroke: #000;
+  stroke-width: 1;
+}
+
+.status-icon.is-error svg path {
+  fill: none;
+  stroke: #000;
+  stroke-width: 2.4;
+  stroke-linecap: round;
 }
 
 @keyframes status-dot {
