@@ -29,7 +29,8 @@ const snatchMarkup = `
 
 const stopMarkup = `
   <svg viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M7 7h10v10H7z" />
+    <path d="M6 6l12 12" />
+    <path d="M18 6 6 18" />
   </svg>
   <span>Stop Download</span>
 `;
@@ -81,25 +82,7 @@ function setRunningState(running) {
 function setStatusIcon(state) {
   statusIcon.className = `status-icon is-${state}`;
   if (state === "scanning") {
-    statusIcon.innerHTML = `
-      <span class="scan-corner scan-corner-tl"></span>
-      <span class="scan-corner scan-corner-tr"></span>
-      <span class="scan-corner scan-corner-bl"></span>
-      <span class="scan-corner scan-corner-br"></span>
-      <span class="scan-file">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M5 3h14v18H5z" />
-          <path d="M8 15l3-4 2 3 2-2 2 3" />
-          <circle cx="15.5" cy="8.5" r="1.4" />
-        </svg>
-      </span>
-      <span class="scan-glass">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="10" cy="10" r="5.2" />
-          <path d="m14 14 5 5" />
-        </svg>
-      </span>
-    `;
+    statusIcon.innerHTML = "<span></span><span></span><span></span>";
     return;
   }
 
