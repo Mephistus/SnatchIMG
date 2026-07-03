@@ -152,6 +152,15 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function isValidUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 async function startJob() {
   if (isRunning) {
     await requestStop();
@@ -161,6 +170,13 @@ async function startJob() {
   const url = urlInput.value.trim();
   if (!url) {
     urlInput.focus();
+    return;
+  }
+
+  if (!isValidUrl(url)) {
+    setStatusIcon("waiting");
+    phaseText.textContent = "Failed (Invalid URL)";
+    renderLogs(["Now  Failed (Invalid URL)."]);
     return;
   }
 
