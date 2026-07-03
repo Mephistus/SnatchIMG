@@ -4,15 +4,22 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SnatchIMG</title>
-    <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=20260703l" />
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=20260703n" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v=20260703n" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png?v=20260703n" />
+    <script>
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem("snatchimgTheme") || "dark";
+      } catch {
+        document.documentElement.dataset.theme = "dark";
+      }
+    </script>
+    <link rel="stylesheet" href="/static/styles.css?v=20260703n" />
   </head>
   <body>
     <main class="app-shell">
       <header class="brand">
-        <img class="brand-mark" src="/static/snatchicon.png" alt="" aria-hidden="true" />
+        <img class="brand-mark" src="/static/snatchicon.png?v=20260703t" alt="" aria-hidden="true" />
 
         <div class="brand-copy">
           <h1>Snatch<span>IMG</span></h1>
@@ -41,6 +48,23 @@
         <button class="icon-button is-collapsed" id="detailsToggleButton" type="button" title="Show options and progress log" aria-expanded="false">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="m6 15 6-6 6 6" />
+          </svg>
+        </button>
+
+        <button class="theme-toggle" id="themeToggleButton" type="button" title="Turn dark mode on" aria-label="Turn dark mode on" aria-pressed="false">
+          <svg class="theme-toggle-sun" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2" />
+            <path d="M12 20v2" />
+            <path d="m4.9 4.9 1.4 1.4" />
+            <path d="m17.7 17.7 1.4 1.4" />
+            <path d="M2 12h2" />
+            <path d="M20 12h2" />
+            <path d="m4.9 19.1 1.4-1.4" />
+            <path d="m17.7 6.3 1.4-1.4" />
+          </svg>
+          <svg class="theme-toggle-moon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 14.5A7.8 7.8 0 0 1 9.5 4a8.2 8.2 0 1 0 10.5 10.5z" />
           </svg>
         </button>
       </section>
@@ -121,6 +145,6 @@
 
     <footer>SnatchIMG @2026. All Rights Reserved Hexazon</footer>
 
-    <script src="/static/app.js?v=20260703l"></script>
+    <script src="/static/app.js?v=20260703n"></script>
   </body>
 </html>

@@ -13,6 +13,7 @@ const logSection = document.querySelector("#logSection");
 const logBox = document.querySelector("#logBox");
 const clearLogButton = document.querySelector("#clearLogButton");
 const zipButton = document.querySelector("#zipButton");
+const themeToggleButton = document.querySelector("#themeToggleButton");
 
 let pollTimer = null;
 let currentJobId = null;
@@ -36,6 +37,23 @@ const stopMarkup = `
   </svg>
   <span>Stop Download</span>
 `;
+
+function setTheme(theme) {
+  const nextTheme = theme === "dark" ? "dark" : "light";
+  const isDark = nextTheme === "dark";
+  document.documentElement.dataset.theme = nextTheme;
+  try {
+    localStorage.setItem("snatchimgTheme", nextTheme);
+  } catch {
+    // The theme still applies for this page view if storage is unavailable.
+  }
+  themeToggleButton.setAttribute("aria-pressed", String(isDark));
+  themeToggleButton.setAttribute(
+    "aria-label",
+    isDark ? "Turn dark mode off" : "Turn dark mode on"
+  );
+  themeToggleButton.title = isDark ? "Turn dark mode off" : "Turn dark mode on";
+}
 
 function setProgress(progress, saved, total) {
   const savedCount = Number(saved) || 0;
@@ -164,7 +182,14 @@ function getLatestLogMessage(lines) {
 }
 
 function updatePhaseText(phase) {
-  currentPhaseBase = String(phase).replace(/\s*\([^)]*\)$/, "").trim();
+  const phaseValue = String(phase).trim();
+  const hasPhaseDetail = /\([^)]*\)\s*$/.test(phaseValue);
+  currentPhaseBase = phaseValue.replace(/\s*\([^)]*\)$/, "").trim();
+
+  if (hasPhaseDetail) {
+    phaseText.textContent = phaseValue;
+    return;
+  }
 
   if (!latestLogMessage) {
     phaseText.textContent = currentPhaseBase;
@@ -351,6 +376,12 @@ clearLogButton.addEventListener("click", () => {
   renderLogs([]);
 });
 
+themeToggleButton.addEventListener("click", () => {
+  const currentTheme = document.documentElement.dataset.theme;
+  setTheme(currentTheme === "dark" ? "light" : "dark");
+});
+
+setTheme(document.documentElement.dataset.theme);
 setProgress(0, 0, 0);
 setZipReady(null);
 setRunningState(false);

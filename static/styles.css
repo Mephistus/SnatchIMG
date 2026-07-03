@@ -8,7 +8,67 @@
   --muted: #6e7a96;
   --line: #dbe5ff;
   --panel: #ffffff;
+  --body-bg:
+    radial-gradient(circle at 50% -120px, rgba(35, 104, 255, 0.11), transparent 270px),
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  --body-accent: #121826;
+  --control-bg: #fbfdff;
+  --control-text: #32446c;
+  --control-disabled-bg: #eef2f8;
+  --control-disabled-text: #8a96ad;
+  --panel-glass: rgba(255, 255, 255, 0.92);
+  --icon-button-bg: #ffffff;
+  --icon-button-text: #11265a;
+  --phase-detail: #9ba3b2;
+  --meter-bg: #e7efff;
+  --file-count: #31405f;
+  --pill-bg: #edf3ff;
+  --success-text: #234333;
+  --success-pill-bg: #eaf9f1;
+  --log-title: #14234d;
+  --log-box-bg: #ffffff;
+  --log-box-rail: #f2f5fb;
+  --log-text: #18274d;
+  --log-time: #50607f;
+  --footer: #111827;
   --shadow: 0 18px 55px rgba(31, 91, 245, 0.12);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --blue: #6da0ff;
+  --blue-strong: #4d86f7;
+  --green: #4bd990;
+  --red: #ff6374;
+  --ink: #f6f8ff;
+  --text: #d8e2ff;
+  --muted: #96a6ca;
+  --line: #26385f;
+  --panel: #111827;
+  --body-bg:
+    radial-gradient(circle at 50% -120px, rgba(109, 160, 255, 0.22), transparent 290px),
+    linear-gradient(180deg, #070b13 0%, #0d1423 100%);
+  --body-accent: #c9d4ef;
+  --control-bg: #0b1220;
+  --control-text: #edf3ff;
+  --control-disabled-bg: #182235;
+  --control-disabled-text: #687899;
+  --panel-glass: rgba(12, 19, 32, 0.92);
+  --icon-button-bg: #111b2f;
+  --icon-button-text: #dbe6ff;
+  --phase-detail: #7f8fb2;
+  --meter-bg: #182746;
+  --file-count: #c3d0eb;
+  --pill-bg: #132747;
+  --success-text: #a7f2c7;
+  --success-pill-bg: #0f2d22;
+  --log-title: #dbe6ff;
+  --log-box-bg: #0b1220;
+  --log-box-rail: #111b2f;
+  --log-text: #d7e2ff;
+  --log-time: #8ca0c5;
+  --footer: #8ea0c4;
+  --shadow: 0 18px 55px rgba(0, 0, 0, 0.35);
 }
 
 * {
@@ -20,9 +80,7 @@ body {
   margin: 0;
   color: var(--text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background:
-    radial-gradient(circle at 50% -120px, rgba(35, 104, 255, 0.11), transparent 270px),
-    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  background: var(--body-bg);
 }
 
 button,
@@ -70,21 +128,61 @@ button {
 
 .brand-copy p {
   margin: 7px 0 0 4px;
-  color: #121826;
+  color: var(--body-accent);
   font-size: clamp(15px, 2.8vw, 18px);
   line-height: 1.2;
 }
 
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  color: var(--icon-button-text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--icon-button-bg);
+}
+
+.theme-toggle svg {
+  grid-area: 1 / 1;
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+.theme-toggle-moon {
+  opacity: 0;
+  transform: scale(0.75) rotate(-20deg);
+}
+
+[data-theme="dark"] .theme-toggle-sun {
+  opacity: 0;
+  transform: scale(0.75) rotate(20deg);
+}
+
+[data-theme="dark"] .theme-toggle-moon {
+  opacity: 1;
+  transform: scale(1) rotate(0deg);
+}
+
 .command-panel {
   display: grid;
-  grid-template-columns: 1fr auto 46px;
+  grid-template-columns: 1fr auto 46px 46px;
   gap: 12px;
   align-items: center;
   min-height: 74px;
   padding: 12px 13px 12px 20px;
   border: 1.5px solid var(--blue);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--panel-glass);
   box-shadow: var(--shadow);
 }
 
@@ -119,11 +217,11 @@ button {
   min-width: 0;
   height: 46px;
   padding: 0 16px;
-  color: #32446c;
+  color: var(--control-text);
   border: 1px solid var(--line);
   border-radius: 6px;
   outline: none;
-  background: #fbfdff;
+  background: var(--control-bg);
 }
 
 .url-field input:focus {
@@ -133,14 +231,14 @@ button {
 
 .url-field input:disabled,
 .options-panel input:disabled {
-  color: #8a96ad;
-  border-color: #d8dfec;
-  background: #eef2f8;
+  color: var(--control-disabled-text);
+  border-color: var(--line);
+  background: var(--control-disabled-bg);
   cursor: not-allowed;
 }
 
 .options-panel input:disabled + span {
-  color: #8a96ad;
+  color: var(--control-disabled-text);
 }
 
 .primary-action,
@@ -184,8 +282,8 @@ button {
   display: grid;
   place-items: center;
   width: 46px;
-  color: #11265a;
-  background: #ffffff;
+  color: var(--icon-button-text);
+  background: var(--icon-button-bg);
 }
 
 .icon-button svg {
@@ -226,6 +324,7 @@ button {
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 6px;
+  background: var(--control-bg);
 }
 
 .toggle {
@@ -256,7 +355,7 @@ button {
 }
 
 .phase-detail {
-  color: #9ba3b2;
+  color: var(--phase-detail);
 }
 
 .status-icon.is-waiting span {
@@ -373,7 +472,7 @@ button {
   height: 12px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e7efff;
+  background: var(--meter-bg);
 }
 
 .meter span {
@@ -403,7 +502,7 @@ button {
 }
 
 .meter-count .file-count {
-  color: #31405f;
+  color: var(--file-count);
   font-weight: 600;
 }
 
@@ -414,7 +513,7 @@ button {
   text-align: center;
   border: 1px solid rgba(35, 104, 255, 0.18);
   border-radius: 999px;
-  background: #edf3ff;
+  background: var(--pill-bg);
 }
 
 .meter-count.is-complete {
@@ -422,13 +521,13 @@ button {
 }
 
 .meter-count.is-complete .file-count {
-  color: #234333;
+  color: var(--success-text);
 }
 
 .meter-count.is-complete .percent-pill {
   color: var(--green);
   border-color: rgba(25, 168, 102, 0.22);
-  background: #eaf9f1;
+  background: var(--success-pill-bg);
 }
 
 .log-section {
@@ -455,7 +554,7 @@ button {
 }
 
 .log-header > div {
-  color: #14234d;
+  color: var(--log-title);
 }
 
 .log-header > div svg {
@@ -466,7 +565,7 @@ button {
 
 #clearLogButton {
   padding: 0;
-  color: #14234d;
+  color: var(--log-title);
   border: 0;
   background: transparent;
   font-size: 13px;
@@ -483,8 +582,8 @@ button {
   padding: 11px 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #ffffff;
-  box-shadow: inset -6px 0 0 #f2f5fb;
+  background: var(--log-box-bg);
+  box-shadow: inset -6px 0 0 var(--log-box-rail);
 }
 
 .log-box p {
@@ -493,7 +592,7 @@ button {
   gap: 8px;
   align-items: start;
   margin: 0 0 7px;
-  color: #18274d;
+  color: var(--log-text);
   font-size: 13px;
   line-height: 1.2;
 }
@@ -511,7 +610,7 @@ button {
 
 .log-box p span:first-child {
   grid-column: 1;
-  color: #50607f;
+  color: var(--log-time);
 }
 
 .log-box p span:last-child {
@@ -574,7 +673,7 @@ footer {
   width: min(100%, 700px);
   margin: 0 auto;
   padding: 0 26px 20px;
-  color: #111827;
+  color: var(--footer);
   font-size: 12px;
 }
 
@@ -597,7 +696,7 @@ footer {
   }
 
   .command-panel {
-    grid-template-columns: 1fr 46px;
+    grid-template-columns: 1fr 46px 46px;
   }
 
   .url-field {
