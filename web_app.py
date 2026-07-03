@@ -70,7 +70,7 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
     with jobs_lock:
         job = jobs[job_id]
         job.status = "running"
-        job.phase = "Scanning gallery"
+        job.phase = "Scanning gallery (Started scan - This could take a few minutes.)"
         job.progress = 3
         job.add_log("Started scan - This could take a few minutes.")
 
