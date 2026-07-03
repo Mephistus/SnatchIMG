@@ -35,7 +35,7 @@ const stopMarkup = `
     <path d="M6 6l12 12" />
     <path d="M18 6 6 18" />
   </svg>
-  <span>Stop Download</span>
+  <span>Stop Progress</span>
 `;
 
 function setTheme(theme) {

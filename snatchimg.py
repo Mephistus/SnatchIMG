@@ -40,6 +40,14 @@ IMAGE_EXTENSIONS = {
 }
 
 
+class UserFacingError(Exception):
+    """An expected scan problem safe to show in the UI."""
+
+
+class PageAccessError(UserFacingError):
+    """The starting page could not be fetched."""
+
+
 @dataclass(frozen=True)
 class PageLink:
     url: str
@@ -343,8 +351,10 @@ def discover_images(
     seen_pages: set[str] = set()
     pending: deque[tuple[str, int]] = deque([(clean_url(start_url), 0)])
     is_cancelled = should_cancel or (lambda: False)
+    start_page_only = max_pages == 0
+    page_limit = max(1, max_pages)
 
-    while pending and len(seen_pages) < max_pages and not is_cancelled():
+    while pending and len(seen_pages) < page_limit and not is_cancelled():
         page_url, depth = pending.popleft()
         if page_url in seen_pages:
             continue
@@ -358,6 +368,10 @@ def discover_images(
             html = fetch_text(page_url, timeout, user_agent)
         except (HTTPError, URLError, TimeoutError, OSError) as exc:
             print(f"skip page: {page_url} ({exc})")
+            if depth == 0:
+                raise PageAccessError(
+                    "The page could not be accessed. The site may be blocking automated requests or requiring a browser session."
+                ) from exc
             continue
 
         parser = ImagePageParser(page_url)
@@ -398,7 +412,7 @@ def discover_images(
             for post in sorted(parser.continue_posts, key=lambda item: item.url):
                 field_names = ", ".join(name for name, _ in post.data)
                 print(f"  continue form: {post.url} [{field_names}]")
-        if not (links_only and depth == 0):
+        if start_page_only or not (links_only and depth == 0):
             add_found_images(found_images, seen_images, parser.image_urls)
         add_found_images(found_images, seen_images, parser.linked_image_urls)
         for posted_parser in posted_parsers:
@@ -486,7 +500,7 @@ def parse_args() -> argparse.Namespace:
         "--max-pages",
         type=int,
         default=25,
-        help="Maximum pages to scan when using --crawl or --deep (default: 25)",
+        help="Maximum pages to scan when using --crawl or --deep; use 0 for the starting page only (default: 25)",
     )
     parser.add_argument(
         "--delay",
@@ -514,8 +528,8 @@ def main() -> int:
     if not start_url.startswith(("http://", "https://")):
         start_url = f"https://{start_url}"
 
-    if args.max_pages < 1:
-        print("--max-pages must be at least 1", file=sys.stderr)
+    if args.max_pages < 0:
+        print("--max-pages must be at least 0", file=sys.stderr)
         return 2
     if args.delay < 0:
         print("--delay must be 0 or greater", file=sys.stderr)

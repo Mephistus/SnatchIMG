@@ -6,8 +6,10 @@ from __future__ import annotations
 import json
 import mimetypes
 import shutil
+import socket
 import threading
 import time
+import traceback
 import uuid
 from dataclasses import dataclass, field
 from http import HTTPStatus
@@ -22,6 +24,8 @@ import snatchimg
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "static"
 RUNS_DIR = ROOT / ".snatchimg_runs"
+PUBLIC_SCAN_ERROR = "The scan failed. Please check the URL/options and try again."
+PUBLIC_NO_IMAGES_ERROR = "No images were found on that page. Try changing the options or using a direct gallery page."
 
 
 @dataclass
@@ -53,6 +57,20 @@ def normalize_url(url: str) -> str:
     if not url.startswith(("http://", "https://")):
         return f"https://{url}"
     return url
+
+
+def is_relative_to(path: Path, base: Path) -> bool:
+    try:
+        path.resolve().relative_to(base.resolve())
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def cleanup_job_files(job_id: str) -> None:
+    run_dir = RUNS_DIR / job_id
+    if is_relative_to(run_dir, RUNS_DIR) and run_dir.exists():
+        shutil.rmtree(run_dir, ignore_errors=True)
 
 
 def run_job(job_id: str, options: dict[str, Any]) -> None:
@@ -101,6 +119,16 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
             job.progress = 10 if images else 100
             job.add_log(f"Found {len(images)} image(s).")
 
+        if not images:
+            cleanup_job_files(job_id)
+            with jobs_lock:
+                job.status = "error"
+                job.phase = "No images found"
+                job.error = PUBLIC_NO_IMAGES_ERROR
+                job.zip_path = None
+                job.add_log(PUBLIC_NO_IMAGES_ERROR)
+            return
+
         for url in images:
             if is_cancelled():
                 finish_cancelled()
@@ -131,6 +159,17 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
             if options.get("delay", 0.2):
                 time.sleep(float(options.get("delay", 0.2)))
 
+        if job.saved == 0:
+            cleanup_job_files(job_id)
+            with jobs_lock:
+                job.status = "error"
+                job.phase = "No images saved"
+                job.progress = 100
+                job.error = PUBLIC_NO_IMAGES_ERROR
+                job.zip_path = None
+                job.add_log(PUBLIC_NO_IMAGES_ERROR)
+            return
+
         if is_cancelled():
             finish_cancelled()
             return
@@ -140,10 +179,7 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
             job.progress = 95
             job.add_log("Creating ZIP archive.")
 
-        if output_dir.exists():
-            zip_path = Path(shutil.make_archive(str(zip_base), "zip", output_dir))
-        else:
-            zip_path = Path(shutil.make_archive(str(zip_base), "zip", RUNS_DIR / job_id))
+        zip_path = Path(shutil.make_archive(str(zip_base), "zip", output_dir))
 
         with jobs_lock:
             job.status = "complete"
@@ -152,12 +188,25 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
             job.zip_path = zip_path
             job.add_log(f"ZIP ready with {job.saved} saved image(s).")
 
-    except Exception as exc:  # Keep the server alive and show the error in the UI.
+    except snatchimg.UserFacingError as exc:
+        print(f"Job {job_id} failed:")
+        print(traceback.format_exc())
         with jobs_lock:
             job.status = "error"
             job.phase = "Failed"
+            job.progress = 100
             job.error = str(exc)
-            job.add_log(f"Error: {exc}")
+            job.add_log(str(exc))
+
+    except Exception:  # Keep the server alive and show a safe error in the UI.
+        print(f"Job {job_id} failed:")
+        print(traceback.format_exc())
+        with jobs_lock:
+            job.status = "error"
+            job.phase = "Failed"
+            job.progress = 100
+            job.error = PUBLIC_SCAN_ERROR
+            job.add_log(PUBLIC_SCAN_ERROR)
 
 
 class SnatchHandler(BaseHTTPRequestHandler):
@@ -201,8 +250,8 @@ class SnatchHandler(BaseHTTPRequestHandler):
             if url in {"http://", "https://"}:
                 raise ValueError("A website URL is required.")
             max_pages = int(body.get("maxPages", 200))
-            if max_pages < 1:
-                raise ValueError("Max pages must be at least 1.")
+            if max_pages < 0:
+                raise ValueError("Max pages must be at least 0.")
         except (ValueError, json.JSONDecodeError) as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
@@ -267,7 +316,7 @@ class SnatchHandler(BaseHTTPRequestHandler):
             job = jobs.get(job_id)
             zip_path = job.zip_path if job else None
 
-        if not zip_path or not zip_path.exists():
+        if not zip_path or not is_relative_to(zip_path, RUNS_DIR) or not zip_path.exists():
             self.send_error(HTTPStatus.NOT_FOUND)
             return
 
@@ -283,7 +332,7 @@ class SnatchHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def send_static(self, path: Path) -> None:
-        if not path.exists() or not path.is_file():
+        if not is_relative_to(path, STATIC_DIR) or not path.exists() or not path.is_file():
             self.send_error(HTTPStatus.NOT_FOUND)
             return
 
@@ -307,9 +356,18 @@ class SnatchHandler(BaseHTTPRequestHandler):
         return
 
 
+class SnatchServer(ThreadingHTTPServer):
+    allow_reuse_address = False
+
+    def server_bind(self) -> None:
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 def main() -> int:
     RUNS_DIR.mkdir(exist_ok=True)
-    server = ThreadingHTTPServer(("127.0.0.1", 8080), SnatchHandler)
+    server = SnatchServer(("127.0.0.1", 8080), SnatchHandler)
     print("SnatchIMG web app running at http://127.0.0.1:8080")
     server.serve_forever()
     return 0
