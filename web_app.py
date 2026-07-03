@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import mimetypes
+import os
 import shutil
 import socket
 import threading
@@ -357,18 +359,35 @@ class SnatchHandler(BaseHTTPRequestHandler):
 
 
 class SnatchServer(ThreadingHTTPServer):
-    allow_reuse_address = False
+    allow_reuse_address = os.environ.get("SNATCHIMG_REUSE_ADDRESS") == "1"
 
     def server_bind(self) -> None:
-        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+        if not self.allow_reuse_address and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         super().server_bind()
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the SnatchIMG web UI.")
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("SNATCHIMG_HOST", "127.0.0.1"),
+        help="Host interface to bind (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--port",
+        default=int(os.environ.get("SNATCHIMG_PORT", "8080")),
+        type=int,
+        help="Port to bind (default: 8080)",
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
+    args = parse_args()
     RUNS_DIR.mkdir(exist_ok=True)
-    server = SnatchServer(("127.0.0.1", 8080), SnatchHandler)
-    print("SnatchIMG web app running at http://127.0.0.1:8080")
+    server = SnatchServer((args.host, args.port), SnatchHandler)
+    print(f"SnatchIMG web app running at http://{args.host}:{args.port}")
     server.serve_forever()
     return 0
 

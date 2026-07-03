@@ -39,6 +39,18 @@ IMAGE_EXTENSIONS = {
     ".webp",
 }
 
+NON_IMAGE_EXTENSIONS = {
+    ".css",
+    ".htm",
+    ".html",
+    ".js",
+    ".json",
+    ".pdf",
+    ".php",
+    ".txt",
+    ".xml",
+}
+
 
 class UserFacingError(Exception):
     """An expected scan problem safe to show in the UI."""
@@ -195,6 +207,10 @@ def looks_like_image_url(url: str) -> bool:
     return Path(urlparse(url).path).suffix.lower() in IMAGE_EXTENSIONS
 
 
+def looks_like_non_image_url(url: str) -> bool:
+    return Path(urlparse(url).path).suffix.lower() in NON_IMAGE_EXTENSIONS
+
+
 def is_site_asset(url: str) -> bool:
     path = urlparse(url).path.lower()
     asset_names = (
@@ -229,7 +245,11 @@ def link_priority(link: PageLink, start_url: str) -> tuple[int, str]:
 
 def add_image_url(urls: set[str], url: str) -> None:
     clean = clean_url(url)
-    if clean.startswith(("http://", "https://")) and not is_site_asset(clean):
+    if (
+        clean.startswith(("http://", "https://"))
+        and not looks_like_non_image_url(clean)
+        and not is_site_asset(clean)
+    ):
         urls.add(clean)
 
 
@@ -315,8 +335,10 @@ def save_image(
         print(f"skip: {url} ({exc})")
         return None
 
-    if "image/" not in content_type.lower() and extension_for(url, content_type) == ".img":
-        print(f"skip: {url} (not an image: {content_type or 'unknown type'})")
+    content_type = (content_type or "").lower().strip()
+
+    if not content_type.startswith("image/"):
+        print(f"skip: {url} (not an image: {content_type or 'unknown'})")
         return None
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -328,7 +350,7 @@ def save_image(
 
 def add_found_images(found_images: list[str], seen_images: set[str], urls: Iterable[str]) -> None:
     for url in urls:
-        if url not in seen_images:
+        if not looks_like_non_image_url(url) and url not in seen_images:
             seen_images.add(url)
             found_images.append(url)
 
@@ -419,9 +441,10 @@ def discover_images(
             add_found_images(found_images, seen_images, posted_parser.image_urls)
             add_found_images(found_images, seen_images, posted_parser.linked_image_urls)
         if deep:
-            add_found_images(found_images, seen_images, parser.continue_urls)
             for url in sorted(parser.continue_urls):
-                if not looks_like_image_url(url) and url not in seen_pages:
+                if looks_like_image_url(url):
+                    add_found_images(found_images, seen_images, (url,))
+                elif url not in seen_pages:
                     pending.append((url, depth + 1))
 
         if crawl:
@@ -552,6 +575,8 @@ def main() -> int:
         timeout=args.timeout,
         user_agent=args.user_agent,
     )
+
+
 
     if not images:
         print("No images found.")
