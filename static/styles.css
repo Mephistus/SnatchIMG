@@ -1,6 +1,8 @@
 :root {
   --blue: #2368ff;
   --blue-strong: #1559f4;
+  --green: #19a866;
+  --red: #e23f4f;
   --ink: #08101f;
   --text: #152349;
   --muted: #6e7a96;
@@ -47,50 +49,10 @@ button {
 }
 
 .brand-mark {
-  position: relative;
-  width: 132px;
-  height: 112px;
-  border: 8px solid #0a0e17;
-  border-radius: 10px;
-  box-shadow: 0 14px 0 rgba(8, 16, 31, 0.08);
-}
-
-.browser-dots {
-  display: flex;
-  gap: 7px;
-  height: 24px;
-  padding: 5px 0 0 9px;
-}
-
-.browser-dots span {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #ffffff;
-}
-
-.brand-mark svg {
-  position: absolute;
-  inset: 20px -28px -16px 8px;
-  width: 150px;
-  height: 116px;
-  overflow: visible;
-}
-
-.mountain,
-.sun,
-.arrow,
-.tray {
-  fill: var(--blue);
-}
-
-.arrow,
-.tray {
-  fill: none;
-  stroke: var(--blue);
-  stroke-width: 12;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  display: block;
+  width: 144px;
+  height: auto;
+  flex: 0 0 auto;
 }
 
 .brand-copy h1 {
@@ -169,6 +131,18 @@ button {
   box-shadow: 0 0 0 3px rgba(35, 104, 255, 0.12);
 }
 
+.url-field input:disabled,
+.options-panel input:disabled {
+  color: #8a96ad;
+  border-color: #d8dfec;
+  background: #eef2f8;
+  cursor: not-allowed;
+}
+
+.options-panel input:disabled + span {
+  color: #8a96ad;
+}
+
 .primary-action,
 .icon-button {
   height: 46px;
@@ -192,6 +166,15 @@ button {
   background: var(--blue-strong);
 }
 
+.primary-action.is-danger {
+  border-color: #e23f4f;
+  background: #e23f4f;
+}
+
+.primary-action.is-danger:hover {
+  background: #cf3140;
+}
+
 .primary-action:disabled {
   opacity: 0.72;
   cursor: wait;
@@ -203,6 +186,15 @@ button {
   width: 46px;
   color: #11265a;
   background: #ffffff;
+}
+
+.icon-button svg {
+  transform: rotate(180deg);
+  transition: transform 0.18s ease;
+}
+
+.icon-button.is-collapsed svg {
+  transform: rotate(0deg);
 }
 
 .options-panel {
@@ -249,21 +241,57 @@ button {
   min-height: 32px;
 }
 
-.spinner {
+.status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   width: 27px;
   height: 27px;
+  flex: 0 0 auto;
+}
+
+.status-icon span {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  border: 6px solid #e3ebff;
-  border-top-color: var(--blue);
+  background: var(--red);
+  animation: status-dot 1s ease-in-out infinite;
 }
 
-.spinner.is-active {
-  animation: spin 0.8s linear infinite;
+.status-icon span:nth-child(2) {
+  animation-delay: 0.14s;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+.status-icon span:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+.status-icon.is-complete {
+  color: var(--green);
+}
+
+.status-icon.is-complete svg {
+  width: 27px;
+  height: 27px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@keyframes status-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+
+  40% {
+    opacity: 1;
+    transform: translateY(-4px);
   }
 }
 
@@ -291,6 +319,10 @@ button {
   transition: width 0.28s ease;
 }
 
+.meter span.is-complete {
+  background: linear-gradient(90deg, #18a865, #34c47b);
+}
+
 .meter-count {
   width: 110px;
   color: var(--blue);
@@ -299,9 +331,17 @@ button {
   text-align: right;
 }
 
+.meter-count.is-complete {
+  color: var(--green);
+}
+
 .log-section {
   margin-top: 34px;
   padding: 0 20px;
+}
+
+.log-section.is-hidden {
+  display: none;
 }
 
 .log-header {
@@ -353,8 +393,9 @@ button {
 
 .log-box p {
   display: grid;
-  grid-template-columns: 76px 11px 1fr;
+  grid-template-columns: 76px 11px minmax(0, 1fr);
   gap: 8px;
+  align-items: start;
   margin: 0 0 7px;
   color: #18274d;
   font-size: 13px;
@@ -373,7 +414,14 @@ button {
 }
 
 .log-box p span:first-child {
+  grid-column: 1;
   color: #50607f;
+}
+
+.log-box p span:last-child {
+  grid-column: 3;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .log-box .muted {
@@ -445,16 +493,7 @@ footer {
   }
 
   .brand-mark {
-    width: 92px;
-    height: 78px;
-    border-width: 6px;
-    flex: 0 0 auto;
-  }
-
-  .brand-mark svg {
-    inset: 13px -18px -10px 5px;
-    width: 108px;
-    height: 84px;
+    width: 104px;
   }
 
   .brand-copy h1 {

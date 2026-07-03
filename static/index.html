@@ -4,24 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SnatchIMG</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260703" />
   </head>
   <body>
     <main class="app-shell">
       <header class="brand">
-        <div class="brand-mark" aria-hidden="true">
-          <div class="browser-dots">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
-          <svg viewBox="0 0 150 116" role="img">
-            <path class="mountain" d="M24 86 60 37l31 39 21-24 23 34H24Z" />
-            <circle class="sun" cx="116" cy="34" r="12" />
-            <path class="arrow" d="M112 62v33m-16-17 16 17 16-17" />
-            <path class="tray" d="M82 96v13h60V96" />
-          </svg>
-        </div>
+        <img class="brand-mark" src="/static/snatchimg-icon.svg" alt="" aria-hidden="true" />
 
         <div class="brand-copy">
           <h1>Snatch<span>IMG</span></h1>
@@ -47,14 +35,14 @@
           <span>Snatch Images</span>
         </button>
 
-        <button class="icon-button" id="settingsButton" type="button" title="Options">
+        <button class="icon-button" id="logToggleButton" type="button" title="Hide progress log" aria-expanded="true">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="m6 15 6-6 6 6" />
           </svg>
         </button>
       </section>
 
-      <section class="options-panel is-hidden" id="optionsPanel" aria-label="Options">
+      <section class="options-panel" id="optionsPanel" aria-label="Options">
         <label>
           <span>Max pages</span>
           <input id="maxPagesInput" type="number" min="1" value="200" />
@@ -71,7 +59,11 @@
 
       <section class="progress-section" aria-label="Download progress">
         <div class="status-line">
-          <div class="spinner" id="spinner" aria-hidden="true"></div>
+          <div class="status-icon" id="statusIcon" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
           <strong id="phaseText">Waiting...</strong>
         </div>
 
@@ -83,7 +75,7 @@
         </div>
       </section>
 
-      <section class="log-section" aria-label="Progress log">
+      <section class="log-section" id="logSection" aria-label="Progress log">
         <div class="log-header">
           <div>
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -121,6 +113,6 @@
 
     <footer>SnatchIMG @2026. All Rights Reserved Hexazon</footer>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=20260703"></script>
   </body>
 </html>

@@ -36,6 +36,7 @@ class Job:
     logs: list[str] = field(default_factory=list)
     zip_path: Path | None = None
     error: str | None = None
+    cancel_requested: bool = False
 
     def add_log(self, message: str) -> None:
         timestamp = time.strftime("%H:%M:%S")
@@ -55,6 +56,17 @@ def normalize_url(url: str) -> str:
 
 
 def run_job(job_id: str, options: dict[str, Any]) -> None:
+    def is_cancelled() -> bool:
+        with jobs_lock:
+            return jobs[job_id].cancel_requested
+
+    def finish_cancelled() -> None:
+        with jobs_lock:
+            job = jobs[job_id]
+            job.status = "cancelled"
+            job.phase = "Stopped"
+            job.add_log("Download stopped by user.")
+
     with jobs_lock:
         job = jobs[job_id]
         job.status = "running"
@@ -76,7 +88,12 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
             delay=float(options.get("delay", 0.2)),
             timeout=int(options.get("timeout", 20)),
             user_agent=snatchimg.DEFAULT_USER_AGENT,
+            should_cancel=is_cancelled,
         )
+
+        if is_cancelled():
+            finish_cancelled()
+            return
 
         with jobs_lock:
             job.total = len(images)
@@ -85,6 +102,10 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
             job.add_log(f"Found {len(images)} image(s).")
 
         for url in images:
+            if is_cancelled():
+                finish_cancelled()
+                return
+
             with jobs_lock:
                 next_index = job.saved + 1
                 job.add_log(f"Downloading image {next_index}/{job.total}.")
@@ -109,6 +130,10 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
 
             if options.get("delay", 0.2):
                 time.sleep(float(options.get("delay", 0.2)))
+
+        if is_cancelled():
+            finish_cancelled()
+            return
 
         with jobs_lock:
             job.phase = "Creating ZIP"
@@ -162,6 +187,10 @@ class SnatchHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/jobs/") and parsed.path.endswith("/cancel"):
+            self.cancel_job(parsed.path)
+            return
+
         if parsed.path != "/api/jobs":
             self.send_error(HTTPStatus.NOT_FOUND)
             return
@@ -209,11 +238,28 @@ class SnatchHandler(BaseHTTPRequestHandler):
                 "progress": job.progress,
                 "logs": job.logs,
                 "error": job.error,
+                "cancelRequested": job.cancel_requested,
                 "downloadUrl": f"/api/jobs/{job.id}/download"
                 if job.status == "complete" and job.zip_path
                 else None,
             }
         self.send_json(data)
+
+    def cancel_job(self, path: str) -> None:
+        job_id = path.removeprefix("/api/jobs/").removesuffix("/cancel").strip("/")
+        with jobs_lock:
+            job = jobs.get(job_id)
+            if not job:
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            if job.status in {"complete", "cancelled", "error"}:
+                self.send_json({"status": job.status})
+                return
+            job.cancel_requested = True
+            job.status = "stopping"
+            job.phase = "Stopping"
+            job.add_log("Stop requested.")
+        self.send_json({"status": "stopping"})
 
     def send_job_download(self, path: str) -> None:
         job_id = path.removeprefix("/api/jobs/").removesuffix("/download").strip("/")

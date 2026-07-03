@@ -12,7 +12,7 @@ from collections import deque
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urldefrag, urljoin, urlparse
 from urllib.request import Request, urlopen
@@ -336,13 +336,15 @@ def discover_images(
     delay: float,
     timeout: int,
     user_agent: str,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> list[str]:
     found_images: list[str] = []
     seen_images: set[str] = set()
     seen_pages: set[str] = set()
     pending: deque[tuple[str, int]] = deque([(clean_url(start_url), 0)])
+    is_cancelled = should_cancel or (lambda: False)
 
-    while pending and len(seen_pages) < max_pages:
+    while pending and len(seen_pages) < max_pages and not is_cancelled():
         page_url, depth = pending.popleft()
         if page_url in seen_pages:
             continue
@@ -363,6 +365,8 @@ def discover_images(
         posted_parsers: list[ImagePageParser] = []
         if deep:
             for post in sorted(parser.continue_posts, key=lambda item: item.url):
+                if is_cancelled():
+                    break
                 try:
                     posted_html = post_text(
                         post.url,
