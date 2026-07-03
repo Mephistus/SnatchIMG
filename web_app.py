@@ -65,14 +65,14 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
             job = jobs[job_id]
             job.status = "cancelled"
             job.phase = "Stopped"
-            job.add_log("Download stopped by user.")
+            job.add_log("Stopped by user.")
 
     with jobs_lock:
         job = jobs[job_id]
         job.status = "running"
         job.phase = "Scanning gallery"
         job.progress = 3
-        job.add_log("Started scan.")
+        job.add_log("Started scan - This could take a few minutes.")
 
     output_dir = RUNS_DIR / job_id / "images"
     zip_base = RUNS_DIR / job_id / "snatchimg_images"
