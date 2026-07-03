@@ -3,3 +3,4 @@ __pycache__/
 .agents/
 .snatchimg_runs/
 server*.log
+AGENTS.md
