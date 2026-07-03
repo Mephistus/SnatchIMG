@@ -1,2 +1,5 @@
 downloaded_images/
 __pycache__/
+.agents/
+.snatchimg_runs/
+server*.log

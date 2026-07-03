@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SnatchIMG</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <div class="browser-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <svg viewBox="0 0 150 116" role="img">
+            <path class="mountain" d="M24 86 60 37l31 39 21-24 23 34H24Z" />
+            <circle class="sun" cx="116" cy="34" r="12" />
+            <path class="arrow" d="M112 62v33m-16-17 16 17 16-17" />
+            <path class="tray" d="M82 96v13h60V96" />
+          </svg>
+        </div>
+
+        <div class="brand-copy">
+          <h1>Snatch<span>IMG</span></h1>
+          <p>Download Images Automatically From Any Online Gallery</p>
+        </div>
+      </header>
+
+      <section class="command-panel" aria-label="Snatch images">
+        <div class="url-field">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M10.6 13.4a5 5 0 0 0 7.1 0l2.1-2.1a5 5 0 0 0-7.1-7.1l-1.2 1.2" />
+            <path d="M13.4 10.6a5 5 0 0 0-7.1 0l-2.1 2.1a5 5 0 0 0 7.1 7.1l1.2-1.2" />
+          </svg>
+          <input id="urlInput" type="url" placeholder="Paste website URL here..." autocomplete="url" />
+        </div>
+
+        <button class="primary-action" id="snatchButton" type="button" title="Snatch images">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v12" />
+            <path d="m7 10 5 5 5-5" />
+            <path d="M5 18v3h14v-3" />
+          </svg>
+          <span>Snatch Images</span>
+        </button>
+
+        <button class="icon-button" id="settingsButton" type="button" title="Options">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 15 6-6 6 6" />
+          </svg>
+        </button>
+      </section>
+
+      <section class="options-panel is-hidden" id="optionsPanel" aria-label="Options">
+        <label>
+          <span>Max pages</span>
+          <input id="maxPagesInput" type="number" min="1" value="200" />
+        </label>
+        <label class="toggle">
+          <input id="deepInput" type="checkbox" checked />
+          <span>Deep</span>
+        </label>
+        <label class="toggle">
+          <input id="linksOnlyInput" type="checkbox" checked />
+          <span>Links only</span>
+        </label>
+      </section>
+
+      <section class="progress-section" aria-label="Download progress">
+        <div class="status-line">
+          <div class="spinner" id="spinner" aria-hidden="true"></div>
+          <strong id="phaseText">Waiting...</strong>
+        </div>
+
+        <div class="meter-row">
+          <div class="meter">
+            <span id="meterFill"></span>
+          </div>
+          <span class="meter-count" id="countText">0 / 0 0%</span>
+        </div>
+      </section>
+
+      <section class="log-section" aria-label="Progress log">
+        <div class="log-header">
+          <div>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 6h8M8 10h8M8 14h5" />
+              <path d="M5 3h14v18H5z" />
+            </svg>
+            <strong>Progress log</strong>
+          </div>
+          <button id="clearLogButton" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 6h18" />
+              <path d="M8 6V4h8v2" />
+              <path d="M6 6l1 15h10l1-15" />
+            </svg>
+            <span>Clear log</span>
+          </button>
+        </div>
+
+        <div class="log-box" id="logBox">
+          <p class="muted">Ready.</p>
+        </div>
+      </section>
+
+      <section class="download-section" aria-label="Download ZIP">
+        <a class="zip-button is-disabled" id="zipButton" href="#" aria-disabled="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v12" />
+            <path d="m7 10 5 5 5-5" />
+            <path d="M5 18v3h14v-3" />
+          </svg>
+          <span>DOWNLOAD ZIP</span>
+        </a>
+      </section>
+    </main>
+
+    <footer>SnatchIMG @2026. All Rights Reserved Hexazon</footer>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
