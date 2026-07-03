@@ -44,7 +44,10 @@ function setProgress(progress, saved, total) {
       : 0;
   const isComplete = totalCount > 0 && savedCount >= totalCount;
   meterFill.style.width = `${percent}%`;
-  countText.textContent = `${savedCount} / ${totalCount} ${percent}%`;
+  countText.innerHTML = `
+    <span class="file-count">${savedCount} / ${totalCount} Files</span>
+    <span class="percent-pill">${percent}%</span>
+  `;
   meterFill.classList.toggle("is-complete", isComplete);
   countText.classList.toggle("is-complete", isComplete);
 }
@@ -76,6 +79,33 @@ function setRunningState(running) {
 
 function setStatusIcon(state) {
   statusIcon.className = `status-icon is-${state}`;
+  if (state === "scanning") {
+    statusIcon.innerHTML = `
+      <span class="scan-file">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 3h14v18H5z" />
+          <path d="M8 15l3-4 2 3 2-2 2 3" />
+          <circle cx="15.5" cy="8.5" r="1.4" />
+        </svg>
+      </span>
+      <span class="scan-file">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 3h14v18H5z" />
+          <path d="M8 15l3-4 2 3 2-2 2 3" />
+          <circle cx="15.5" cy="8.5" r="1.4" />
+        </svg>
+      </span>
+      <span class="scan-file">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 3h14v18H5z" />
+          <path d="M8 15l3-4 2 3 2-2 2 3" />
+          <circle cx="15.5" cy="8.5" r="1.4" />
+        </svg>
+      </span>
+    `;
+    return;
+  }
+
   if (state === "complete") {
     statusIcon.innerHTML = `
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -85,7 +115,36 @@ function setStatusIcon(state) {
     return;
   }
 
+  if (state === "stopped") {
+    statusIcon.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6 6l12 12" />
+        <path d="M18 6 6 18" />
+      </svg>
+    `;
+    return;
+  }
+
   statusIcon.innerHTML = "<span></span><span></span><span></span>";
+}
+
+function setStatusFromJob(job) {
+  if (job.status === "complete") {
+    setStatusIcon("complete");
+    return;
+  }
+
+  if (job.status === "cancelled" || job.status === "stopping") {
+    setStatusIcon("stopped");
+    return;
+  }
+
+  if ((job.phase || "").toLowerCase().includes("scanning")) {
+    setStatusIcon("scanning");
+    return;
+  }
+
+  setStatusIcon("working");
 }
 
 function renderLogs(lines) {
@@ -179,6 +238,7 @@ async function pollJob(jobId) {
 
     phaseText.textContent = job.phase || "Working...";
     setProgress(job.progress, job.saved, job.total);
+    setStatusFromJob(job);
     renderLogs(job.logs);
 
     if (job.status === "complete") {
@@ -194,7 +254,7 @@ async function pollJob(jobId) {
       clearInterval(pollTimer);
       currentJobId = null;
       setRunningState(false);
-      setStatusIcon("waiting");
+      setStatusIcon("stopped");
       setZipReady(null);
     }
 

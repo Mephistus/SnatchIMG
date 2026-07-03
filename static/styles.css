@@ -267,11 +267,56 @@ button {
   animation-delay: 0.28s;
 }
 
+.status-icon.is-scanning {
+  position: relative;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.status-icon.is-scanning .scan-file {
+  position: absolute;
+  left: -9px;
+  display: block;
+  width: 14px;
+  height: 18px;
+  color: var(--blue);
+  background: transparent;
+  animation: scan-file 1.25s linear infinite;
+}
+
+.status-icon.is-scanning .scan-file svg {
+  display: block;
+  width: 14px;
+  height: 18px;
+  fill: #ffffff;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.status-icon.is-scanning .scan-file:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.status-icon.is-scanning .scan-file:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.status-icon.is-scanning .scan-file:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
 .status-icon.is-complete {
   color: var(--green);
 }
 
-.status-icon.is-complete svg {
+.status-icon.is-stopped {
+  color: var(--red);
+}
+
+.status-icon.is-complete svg,
+.status-icon.is-stopped svg {
   width: 27px;
   height: 27px;
   fill: none;
@@ -292,6 +337,23 @@ button {
   40% {
     opacity: 1;
     transform: translateY(-4px);
+  }
+}
+
+@keyframes scan-file {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+
+  12%,
+  88% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(31px);
   }
 }
 
@@ -324,15 +386,45 @@ button {
 }
 
 .meter-count {
-  width: 110px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 168px;
   color: var(--blue);
   font-size: 14px;
   font-weight: 700;
   text-align: right;
+  white-space: nowrap;
+}
+
+.meter-count .file-count {
+  color: #31405f;
+  font-weight: 600;
+}
+
+.meter-count .percent-pill {
+  min-width: 46px;
+  padding: 3px 7px;
+  color: var(--blue);
+  text-align: center;
+  border: 1px solid rgba(35, 104, 255, 0.18);
+  border-radius: 999px;
+  background: #edf3ff;
 }
 
 .meter-count.is-complete {
   color: var(--green);
+}
+
+.meter-count.is-complete .file-count {
+  color: #234333;
+}
+
+.meter-count.is-complete .percent-pill {
+  color: var(--green);
+  border-color: rgba(25, 168, 102, 0.22);
+  background: #eaf9f1;
 }
 
 .log-section {
