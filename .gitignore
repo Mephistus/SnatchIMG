@@ -4,3 +4,5 @@ __pycache__/
 .snatchimg_runs/
 server*.log
 AGENTS.md
+snatchimg_runs/
+.vscode/

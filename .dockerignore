@@ -1,0 +1,9 @@
+.git
+.agents
+.codex
+.snatchimg_runs
+.vscode
+__pycache__
+*.pyc
+server*.log
+downloaded_images
