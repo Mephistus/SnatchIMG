@@ -96,6 +96,7 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
 
     output_dir = RUNS_DIR / job_id / "images"
     zip_base = RUNS_DIR / job_id / "snatchimg_images"
+    seen_image_hashes: set[str] = set()
 
     try:
         images = snatchimg.discover_images(
@@ -110,6 +111,7 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
             user_agent=snatchimg.DEFAULT_USER_AGENT,
             should_cancel=is_cancelled,
         )
+        images = list(dict.fromkeys(images))
 
         if is_cancelled():
             finish_cancelled()
@@ -147,6 +149,7 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
                 user_agent=snatchimg.DEFAULT_USER_AGENT,
                 index=next_index,
                 total=job.total,
+                seen_hashes=seen_image_hashes,
             )
 
             with jobs_lock:

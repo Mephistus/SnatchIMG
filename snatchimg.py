@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import mimetypes
 import re
 import sys
@@ -328,6 +329,7 @@ def save_image(
     user_agent: str,
     index: int,
     total: int,
+    seen_hashes: set[str] | None = None,
 ) -> Path | None:
     try:
         body, content_type = fetch(url, timeout, user_agent)
@@ -340,6 +342,13 @@ def save_image(
     if not content_type.startswith("image/"):
         print(f"skip: {url} (not an image: {content_type or 'unknown'})")
         return None
+
+    digest = hashlib.sha256(body).hexdigest()
+    if seen_hashes is not None:
+        if digest in seen_hashes:
+            print(f"skip: {url} (duplicate image content)")
+            return None
+        seen_hashes.add(digest)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / ordered_filename(index, total, url, content_type)
@@ -480,8 +489,9 @@ def download_images(
     count = 0
     url_list = list(urls)
     total = len(url_list)
+    seen_hashes: set[str] = set()
     for url in url_list:
-        if save_image(url, output_dir, timeout, user_agent, count + 1, total):
+        if save_image(url, output_dir, timeout, user_agent, count + 1, total, seen_hashes):
             count += 1
         if delay:
             time.sleep(delay)
