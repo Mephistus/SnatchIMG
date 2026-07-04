@@ -1,4 +1,6 @@
+import tempfile
 import unittest
+from pathlib import Path
 from urllib.error import URLError
 
 import snatchimg
@@ -71,6 +73,57 @@ class DiscoverImagesTests(unittest.TestCase):
 
         self.assertIn("could not be accessed", str(raised.exception))
 
+    def test_links_only_skips_start_page_direct_images_when_pages_can_continue(self):
+        pages = {
+            "https://example.test/gallery": """
+                <img src="/direct.jpg">
+                <a href="/image/123">view image</a>
+            """,
+            "https://example.test/image/123": """
+                <img src="/detail.jpg">
+            """,
+        }
+
+        def fake_fetch_text(url, timeout, user_agent):
+            return pages[url]
+
+        snatchimg.fetch_text = fake_fetch_text
+
+        images = snatchimg.discover_images(
+            "https://example.test/gallery",
+            crawl=False,
+            deep=True,
+            links_only=True,
+            verbose=False,
+            max_pages=2,
+            delay=0,
+            timeout=5,
+            user_agent="test-agent",
+        )
+
+        self.assertEqual(images, ["https://example.test/detail.jpg"])
+
+    def test_cancel_before_scan_does_not_fetch_pages(self):
+        def fake_fetch_text(url, timeout, user_agent):
+            raise AssertionError("cancelled runs should not fetch pages")
+
+        snatchimg.fetch_text = fake_fetch_text
+
+        images = snatchimg.discover_images(
+            "https://example.test/gallery",
+            crawl=False,
+            deep=True,
+            links_only=False,
+            verbose=False,
+            max_pages=1,
+            delay=0,
+            timeout=5,
+            user_agent="test-agent",
+            should_cancel=lambda: True,
+        )
+
+        self.assertEqual(images, [])
+
 
 class ParserTests(unittest.TestCase):
     def test_parser_collects_lazy_and_srcset_images(self):
@@ -90,6 +143,47 @@ class ParserTests(unittest.TestCase):
                 "https://example.test/large.jpg",
             },
         )
+
+
+class SaveImageTests(unittest.TestCase):
+    def setUp(self):
+        self.original_fetch = snatchimg.fetch
+        self.temp_dir = tempfile.TemporaryDirectory(dir=Path.cwd())
+
+    def tearDown(self):
+        snatchimg.fetch = self.original_fetch
+        self.temp_dir.cleanup()
+
+    def test_different_urls_with_same_image_content_are_saved_once(self):
+        def fake_fetch(url, timeout, user_agent):
+            return b"same image bytes", "image/jpeg"
+
+        snatchimg.fetch = fake_fetch
+        output_dir = Path(self.temp_dir.name) / "images"
+        seen_hashes = set()
+
+        first = snatchimg.save_image(
+            "https://example.test/first.jpg",
+            output_dir,
+            timeout=5,
+            user_agent="test-agent",
+            index=1,
+            total=2,
+            seen_hashes=seen_hashes,
+        )
+        second = snatchimg.save_image(
+            "https://cdn.example.test/copy.jpg",
+            output_dir,
+            timeout=5,
+            user_agent="test-agent",
+            index=2,
+            total=2,
+            seen_hashes=seen_hashes,
+        )
+
+        self.assertIsNotNone(first)
+        self.assertIsNone(second)
+        self.assertEqual([path.name for path in output_dir.iterdir()], ["01.jpg"])
 
 
 if __name__ == "__main__":
