@@ -493,12 +493,20 @@ button {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  width: 168px;
+  width: 184px;
   color: var(--blue);
   font-size: 14px;
   font-weight: 700;
   text-align: right;
   white-space: nowrap;
+}
+
+.meter-count .count-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  line-height: 1.15;
 }
 
 .meter-count .file-count {
@@ -721,6 +729,10 @@ footer {
   .meter-count {
     width: auto;
     text-align: left;
+  }
+
+  .meter-count .count-stack {
+    align-items: flex-start;
   }
 
   .zip-button {
