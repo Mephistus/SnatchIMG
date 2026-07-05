@@ -14,7 +14,7 @@
         document.documentElement.dataset.theme = "dark";
       }
     </script>
-    <link rel="stylesheet" href="/static/styles.css?v=20260705b" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260705c" />
   </head>
   <body>
     <main class="app-shell">
@@ -72,16 +72,25 @@
       <div class="details-panel is-hidden" id="detailsPanel">
         <section class="options-panel" id="optionsPanel" aria-label="Options">
           <label>
-            <span>Max pages</span>
+            <span class="option-title">
+              Max pages
+              <span class="info-tip" tabindex="0" role="button" aria-label="Max pages info" data-tooltip="Limits how many same-site pages SnatchIMG scans. Use 0 to scan only the starting page.">i</span>
+            </span>
             <input id="maxPagesInput" type="number" min="0" value="200" />
           </label>
           <label class="toggle">
             <input id="deepInput" type="checkbox" checked />
-            <span>Deep</span>
+            <span class="option-title">
+              Deep
+              <span class="info-tip" tabindex="0" role="button" aria-label="Deep option info" data-tooltip="Follows image-detail links and continue/open-image actions to find full-size images.">i</span>
+            </span>
           </label>
           <label class="toggle">
             <input id="linksOnlyInput" type="checkbox" checked />
-            <span>Links only</span>
+            <span class="option-title">
+              Links only
+              <span class="info-tip" tabindex="0" role="button" aria-label="Links only option info" data-tooltip="Starts from linked gallery/image pages instead of direct images on the starting page, except when Max pages is 0.">i</span>
+            </span>
           </label>
         </section>
       </div>
