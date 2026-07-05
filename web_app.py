@@ -148,7 +148,7 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
             with jobs_lock:
                 save_index = job.saved + 1
                 attempt_index = job.saved + job.skipped + 1
-                job.add_log(f"Downloading image {attempt_index}/{job.total}.")
+                job.add_log(f"Downloading discovered image {attempt_index}/{job.total}.")
 
             saved_path = snatchimg.save_image(
                 url,
@@ -165,10 +165,13 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
             with jobs_lock:
                 if saved_path:
                     job.saved += 1
-                    job.add_log(f"Saved {saved_path.name}.")
+                    job.add_log(
+                        f"Saved as {saved_path.name} "
+                        f"({job.saved} saved, {job.skipped} skipped)."
+                    )
                 else:
                     job.skipped += 1
-                    job.add_log(f"Skipped image {attempt_index}/{job.total}.")
+                    job.add_log(f"Skipped discovered image {attempt_index}/{job.total}.")
                 if job.total:
                     processed = job.saved + job.skipped
                     job.progress = 10 + int((processed / job.total) * 80)

@@ -105,6 +105,37 @@ class RunJobTests(unittest.TestCase):
         self.assertEqual(job.progress, 100)
         self.assertTrue(job.zip_path.exists())
 
+    def test_run_job_passes_referer_and_skip_reasons_to_save_image(self):
+        job_id = "job-save-contract"
+        captured_kwargs = []
+        web_app.jobs[job_id] = web_app.Job(job_id, "https://example.test/gallery")
+        web_app.snatchimg.discover_images = lambda *args, **kwargs: [
+            "https://cdn.example.test/photo.jpg",
+        ]
+
+        def fake_save_image(
+            url, output_dir, timeout, user_agent, index, total, seen_hashes=None, **kwargs
+        ):
+            captured_kwargs.append(kwargs)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            path = output_dir / f"{index:02d}.jpg"
+            path.write_bytes(b"image")
+            return path
+
+        def fake_make_archive(base_name, format, root_dir):
+            zip_path = Path(f"{base_name}.zip")
+            zip_path.write_bytes(b"zip")
+            return str(zip_path)
+
+        web_app.snatchimg.save_image = fake_save_image
+        web_app.shutil.make_archive = fake_make_archive
+
+        web_app.run_job(job_id, {"maxPages": 1, "delay": 0, "timeout": 5})
+
+        self.assertEqual(web_app.jobs[job_id].status, "complete")
+        self.assertEqual(captured_kwargs[0]["referer"], "https://example.test/gallery")
+        self.assertIsInstance(captured_kwargs[0]["skip_reasons"], list)
+
     def test_duplicate_discovered_images_are_saved_once(self):
         job_id = "job-duplicates"
         saved_urls = []
@@ -177,6 +208,41 @@ class RunJobTests(unittest.TestCase):
         self.assertEqual(job.skipped, 1)
         self.assertEqual(job.progress, 100)
         self.assertEqual([path.name for path in image_dir.iterdir()], ["01.jpg"])
+
+    def test_skip_then_save_logs_attempt_and_saved_file_counts_separately(self):
+        job_id = "job-skip-then-save"
+        web_app.jobs[job_id] = web_app.Job(job_id, "https://example.test")
+        web_app.snatchimg.discover_images = lambda *args, **kwargs: [
+            "https://example.test/skipped.jpg",
+            "https://example.test/saved.jpg",
+        ]
+
+        def fake_save_image(url, output_dir, timeout, user_agent, index, total, **kwargs):
+            if url.endswith("skipped.jpg"):
+                return None
+            output_dir.mkdir(parents=True, exist_ok=True)
+            path = output_dir / f"{index:02d}.jpg"
+            path.write_bytes(b"image")
+            return path
+
+        def fake_make_archive(base_name, format, root_dir):
+            zip_path = Path(f"{base_name}.zip")
+            zip_path.write_bytes(b"zip")
+            return str(zip_path)
+
+        web_app.snatchimg.save_image = fake_save_image
+        web_app.shutil.make_archive = fake_make_archive
+
+        web_app.run_job(job_id, {"maxPages": 1, "delay": 0, "timeout": 5})
+
+        job = web_app.jobs[job_id]
+        self.assertEqual(job.status, "complete")
+        self.assertTrue(
+            any("Downloading discovered image 2/2." in log for log in job.logs)
+        )
+        self.assertTrue(
+            any("Saved as 01.jpg (1 saved, 1 skipped)." in log for log in job.logs)
+        )
 
     def test_forbidden_image_skips_use_friendly_public_error(self):
         job_id = "job-forbidden-images"
@@ -324,6 +390,26 @@ class HandlerSecurityTests(unittest.TestCase):
         data, status = handler.sent_json
         self.assertEqual(status, HTTPStatus.OK)
         self.assertIsNone(data["downloadUrl"])
+
+    def test_job_status_response_includes_skipped_count(self):
+        job_id = "job-with-skips"
+        web_app.jobs[job_id] = web_app.Job(
+            job_id,
+            "https://example.test",
+            status="running",
+            total=3,
+            saved=1,
+            skipped=2,
+        )
+        handler = self.make_handler(f"/api/jobs/{job_id}")
+
+        handler.send_job_status(handler.path)
+
+        data, status = handler.sent_json
+        self.assertEqual(status, HTTPStatus.OK)
+        self.assertEqual(data["total"], 3)
+        self.assertEqual(data["saved"], 1)
+        self.assertEqual(data["skipped"], 2)
 
     def test_tampered_download_path_cannot_read_files_outside_runs_dir(self):
         job_id = "job-outside-zip"

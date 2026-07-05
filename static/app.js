@@ -71,8 +71,10 @@ function setProgress(progress, saved, total, skipped = 0) {
     skippedCount > 0 ? `<span class="skip-count">${skippedCount} skipped</span>` : "";
   meterFill.style.width = `${percent}%`;
   countText.innerHTML = `
-    <span class="file-count">${savedCount} / ${totalCount} Files</span>
-    ${skippedLabel}
+    <span class="count-stack">
+      <span class="file-count">${savedCount} / ${totalCount} Files</span>
+      ${skippedLabel}
+    </span>
     <span class="percent-pill">${percent}%</span>
   `;
   meterFill.classList.toggle("is-complete", isComplete);

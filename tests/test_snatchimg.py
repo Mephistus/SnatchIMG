@@ -244,6 +244,81 @@ class SaveImageTests(unittest.TestCase):
         self.assertIsNone(saved)
         self.assertEqual(skip_reasons, [snatchimg.FORBIDDEN_IMAGE_SKIP])
 
+    def test_non_forbidden_http_error_does_not_record_forbidden_skip_reason(self):
+        def fake_fetch(url, timeout, user_agent, **kwargs):
+            raise HTTPError(url, 404, "Not Found", hdrs=None, fp=None)
+
+        snatchimg.fetch = fake_fetch
+        output_dir = Path(self.temp_dir.name) / "images"
+        skip_reasons = []
+
+        saved = snatchimg.save_image(
+            "https://cdn.example.test/missing.jpg",
+            output_dir,
+            timeout=5,
+            user_agent="test-agent",
+            index=1,
+            total=1,
+            skip_reasons=skip_reasons,
+        )
+
+        self.assertIsNone(saved)
+        self.assertEqual(skip_reasons, [])
+
+
+class DownloadImagesTests(unittest.TestCase):
+    def setUp(self):
+        self.original_save_image = snatchimg.save_image
+        self.original_sleep = snatchimg.time.sleep
+        snatchimg.time.sleep = lambda _seconds: None
+        self.temp_dir = tempfile.TemporaryDirectory(dir=Path.cwd())
+
+    def tearDown(self):
+        snatchimg.save_image = self.original_save_image
+        snatchimg.time.sleep = self.original_sleep
+        self.temp_dir.cleanup()
+
+    def test_download_images_passes_referer_and_shared_seen_hashes(self):
+        calls = []
+        seen_hash_ids = []
+
+        def fake_save_image(
+            url, output_dir, timeout, user_agent, index, total, seen_hashes=None, **kwargs
+        ):
+            calls.append((url, index, total, kwargs))
+            seen_hash_ids.append(id(seen_hashes))
+            seen_hashes.add(url)
+            return output_dir / f"{index:02d}.jpg"
+
+        snatchimg.save_image = fake_save_image
+        output_dir = Path(self.temp_dir.name) / "images"
+
+        saved = snatchimg.download_images(
+            [
+                "https://cdn.example.test/first.jpg",
+                "https://cdn.example.test/second.jpg",
+            ],
+            output_dir,
+            timeout=5,
+            user_agent="test-agent",
+            delay=0,
+            referer="https://example.test/gallery",
+        )
+
+        self.assertEqual(saved, 2)
+        self.assertEqual(
+            [(url, index, total) for url, index, total, _kwargs in calls],
+            [
+                ("https://cdn.example.test/first.jpg", 1, 2),
+                ("https://cdn.example.test/second.jpg", 2, 2),
+            ],
+        )
+        self.assertEqual(
+            [kwargs["referer"] for _url, _index, _total, kwargs in calls],
+            ["https://example.test/gallery", "https://example.test/gallery"],
+        )
+        self.assertEqual(len(set(seen_hash_ids)), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
