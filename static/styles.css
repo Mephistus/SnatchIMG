@@ -506,6 +506,12 @@ button {
   font-weight: 600;
 }
 
+.meter-count .skip-count {
+  color: var(--phase-detail);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .meter-count .percent-pill {
   min-width: 46px;
   padding: 3px 7px;

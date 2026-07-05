@@ -55,19 +55,24 @@ function setTheme(theme) {
   themeToggleButton.title = isDark ? "Turn dark mode off" : "Turn dark mode on";
 }
 
-function setProgress(progress, saved, total) {
+function setProgress(progress, saved, total, skipped = 0) {
   const savedCount = Number(saved) || 0;
   const totalCount = Number(total) || 0;
+  const skippedCount = Number(skipped) || 0;
+  const processedCount = savedCount + skippedCount;
   const percent =
     totalCount > 0
-      ? savedCount >= totalCount
+      ? processedCount >= totalCount
         ? 100
-        : Math.floor((savedCount / totalCount) * 100)
+        : Math.floor((processedCount / totalCount) * 100)
       : 0;
-  const isComplete = totalCount > 0 && savedCount >= totalCount;
+  const isComplete = totalCount > 0 && processedCount >= totalCount;
+  const skippedLabel =
+    skippedCount > 0 ? `<span class="skip-count">${skippedCount} skipped</span>` : "";
   meterFill.style.width = `${percent}%`;
   countText.innerHTML = `
     <span class="file-count">${savedCount} / ${totalCount} Files</span>
+    ${skippedLabel}
     <span class="percent-pill">${percent}%</span>
   `;
   meterFill.classList.toggle("is-complete", isComplete);
@@ -311,7 +316,7 @@ async function pollJob(jobId) {
     const job = await response.json();
 
     updatePhaseText(job.phase || "Working...");
-    setProgress(job.progress, job.saved, job.total);
+    setProgress(job.progress, job.saved, job.total, job.skipped);
     setStatusFromJob(job);
     renderLogs(job.logs);
 
@@ -320,7 +325,7 @@ async function pollJob(jobId) {
       currentJobId = null;
       setRunningState(false);
       setStatusIcon("complete");
-      setProgress(100, job.saved, job.total);
+      setProgress(100, job.saved, job.total, job.skipped);
       setZipReady(job.downloadUrl);
     }
 

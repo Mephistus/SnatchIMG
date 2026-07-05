@@ -77,7 +77,7 @@ class RunJobTests(unittest.TestCase):
         ]
 
         def fake_save_image(
-            url, output_dir, timeout, user_agent, index, total, seen_hashes=None
+            url, output_dir, timeout, user_agent, index, total, seen_hashes=None, **kwargs
         ):
             output_dir.mkdir(parents=True, exist_ok=True)
             path = output_dir / f"{index:02d}.jpg"
@@ -101,6 +101,7 @@ class RunJobTests(unittest.TestCase):
         self.assertEqual(job.phase, "Ready")
         self.assertEqual(job.total, 2)
         self.assertEqual(job.saved, 2)
+        self.assertEqual(job.skipped, 0)
         self.assertEqual(job.progress, 100)
         self.assertTrue(job.zip_path.exists())
 
@@ -116,7 +117,7 @@ class RunJobTests(unittest.TestCase):
         ]
 
         def fake_save_image(
-            url, output_dir, timeout, user_agent, index, total, seen_hashes=None
+            url, output_dir, timeout, user_agent, index, total, seen_hashes=None, **kwargs
         ):
             saved_urls.append((url, index, total))
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -138,6 +139,7 @@ class RunJobTests(unittest.TestCase):
         self.assertEqual(job.status, "complete")
         self.assertEqual(job.total, 2)
         self.assertEqual(job.saved, 2)
+        self.assertEqual(job.skipped, 0)
         self.assertEqual(
             saved_urls,
             [
@@ -172,7 +174,34 @@ class RunJobTests(unittest.TestCase):
         self.assertEqual(job.status, "complete")
         self.assertEqual(job.total, 2)
         self.assertEqual(job.saved, 1)
+        self.assertEqual(job.skipped, 1)
+        self.assertEqual(job.progress, 100)
         self.assertEqual([path.name for path in image_dir.iterdir()], ["01.jpg"])
+
+    def test_forbidden_image_skips_use_friendly_public_error(self):
+        job_id = "job-forbidden-images"
+        web_app.jobs[job_id] = web_app.Job(job_id, "https://example.test/gallery")
+        web_app.snatchimg.discover_images = lambda *args, **kwargs: [
+            "https://cdn.example.test/photo.jpg",
+        ]
+
+        def fake_save_image(*args, **kwargs):
+            kwargs["skip_reasons"].append(web_app.snatchimg.FORBIDDEN_IMAGE_SKIP)
+            return None
+
+        def fail_make_archive(*args, **kwargs):
+            raise AssertionError("ZIP should not be created without saved images")
+
+        web_app.snatchimg.save_image = fake_save_image
+        web_app.shutil.make_archive = fail_make_archive
+
+        web_app.run_job(job_id, {"maxPages": 1, "delay": 0, "timeout": 5})
+
+        job = web_app.jobs[job_id]
+        self.assertEqual(job.status, "error")
+        self.assertEqual(job.error, web_app.PUBLIC_FORBIDDEN_IMAGES_ERROR)
+        self.assertEqual(job.skipped, 1)
+        self.assertIn("site refused access", job.logs[-1])
 
     def test_user_facing_error_message_is_preserved(self):
         job_id = "job-user-error"
