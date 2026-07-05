@@ -24,6 +24,10 @@ DEFAULT_USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/125.0 Safari/537.36"
 )
+HTML_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+IMAGE_ACCEPT = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+DEFAULT_ACCEPT_LANGUAGE = "en-US,en;q=0.9"
+FORBIDDEN_IMAGE_SKIP = "forbidden"
 
 IMAGE_EXTENSIONS = {
     ".apng",
@@ -59,6 +63,22 @@ class UserFacingError(Exception):
 
 class PageAccessError(UserFacingError):
     """The starting page could not be fetched."""
+
+
+def browser_headers(
+    user_agent: str,
+    *,
+    accept: str,
+    referer: str | None = None,
+) -> dict[str, str]:
+    headers = {
+        "User-Agent": user_agent,
+        "Accept": accept,
+        "Accept-Language": DEFAULT_ACCEPT_LANGUAGE,
+    }
+    if referer:
+        headers["Referer"] = referer
+    return headers
 
 
 @dataclass(frozen=True)
@@ -263,15 +283,37 @@ def is_continue_image_link(url: str, label: str) -> bool:
     return any(word in words for word in image_words) and any(word in words for word in action_words)
 
 
-def fetch(url: str, timeout: int, user_agent: str) -> tuple[bytes, str]:
-    request = Request(url, headers={"User-Agent": user_agent})
+def fetch(
+    url: str,
+    timeout: int,
+    user_agent: str,
+    *,
+    accept: str = HTML_ACCEPT,
+    referer: str | None = None,
+) -> tuple[bytes, str]:
+    request = Request(
+        url,
+        headers=browser_headers(user_agent, accept=accept, referer=referer),
+    )
     with urlopen(request, timeout=timeout) as response:
         content_type = response.headers.get("Content-Type", "")
         return response.read(), content_type
 
 
-def fetch_text(url: str, timeout: int, user_agent: str) -> str:
-    body, content_type = fetch(url, timeout, user_agent)
+def fetch_text(
+    url: str,
+    timeout: int,
+    user_agent: str,
+    *,
+    referer: str | None = None,
+) -> str:
+    body, content_type = fetch(
+        url,
+        timeout,
+        user_agent,
+        accept=HTML_ACCEPT,
+        referer=referer,
+    )
     encoding = "utf-8"
     match = re.search(r"charset=([\w.-]+)", content_type, re.IGNORECASE)
     if match:
@@ -284,13 +326,15 @@ def post_text(
     fields: Iterable[tuple[str, str]],
     timeout: int,
     user_agent: str,
+    *,
+    referer: str | None = None,
 ) -> str:
     data = urlencode(list(fields)).encode("utf-8")
     request = Request(
         url,
         data=data,
         headers={
-            "User-Agent": user_agent,
+            **browser_headers(user_agent, accept=HTML_ACCEPT, referer=referer),
             "Content-Type": "application/x-www-form-urlencoded",
         },
     )
@@ -330,10 +374,23 @@ def save_image(
     index: int,
     total: int,
     seen_hashes: set[str] | None = None,
+    referer: str | None = None,
+    skip_reasons: list[str] | None = None,
 ) -> Path | None:
     try:
-        body, content_type = fetch(url, timeout, user_agent)
-    except (HTTPError, URLError, TimeoutError, OSError) as exc:
+        body, content_type = fetch(
+            url,
+            timeout,
+            user_agent,
+            accept=IMAGE_ACCEPT,
+            referer=referer,
+        )
+    except HTTPError as exc:
+        if exc.code == 403 and skip_reasons is not None:
+            skip_reasons.append(FORBIDDEN_IMAGE_SKIP)
+        print(f"skip: {url} ({exc})")
+        return None
+    except (URLError, TimeoutError, OSError) as exc:
         print(f"skip: {url} ({exc})")
         return None
 
@@ -485,13 +542,23 @@ def download_images(
     timeout: int,
     user_agent: str,
     delay: float,
+    referer: str | None = None,
 ) -> int:
     count = 0
     url_list = list(urls)
     total = len(url_list)
     seen_hashes: set[str] = set()
     for url in url_list:
-        if save_image(url, output_dir, timeout, user_agent, count + 1, total, seen_hashes):
+        if save_image(
+            url,
+            output_dir,
+            timeout,
+            user_agent,
+            count + 1,
+            total,
+            seen_hashes,
+            referer=referer,
+        ):
             count += 1
         if delay:
             time.sleep(delay)
@@ -598,6 +665,7 @@ def main() -> int:
         timeout=args.timeout,
         user_agent=args.user_agent,
         delay=args.delay,
+        referer=start_url,
     )
     print(f"Done. Saved {saved} of {len(images)} discovered image(s).")
     return 0

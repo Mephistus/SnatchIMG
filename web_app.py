@@ -28,6 +28,10 @@ STATIC_DIR = ROOT / "static"
 RUNS_DIR = ROOT / ".snatchimg_runs"
 PUBLIC_SCAN_ERROR = "The scan failed. Please check the URL/options and try again."
 PUBLIC_NO_IMAGES_ERROR = "No images were found on that page. Try changing the options or using a direct gallery page."
+PUBLIC_FORBIDDEN_IMAGES_ERROR = (
+    "The site refused access to the image files. Browser-like headers and the page "
+    "referer were sent, but this site may require a real browser session."
+)
 
 
 @dataclass
@@ -38,6 +42,7 @@ class Job:
     phase: str = "Queued"
     total: int = 0
     saved: int = 0
+    skipped: int = 0
     progress: int = 0
     logs: list[str] = field(default_factory=list)
     zip_path: Path | None = None
@@ -97,6 +102,7 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
     output_dir = RUNS_DIR / job_id / "images"
     zip_base = RUNS_DIR / job_id / "snatchimg_images"
     seen_image_hashes: set[str] = set()
+    image_skip_reasons: list[str] = []
 
     try:
         images = snatchimg.discover_images(
@@ -133,23 +139,27 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
                 job.add_log(PUBLIC_NO_IMAGES_ERROR)
             return
 
+        original_total = len(images)
         for url in images:
             if is_cancelled():
                 finish_cancelled()
                 return
 
             with jobs_lock:
-                next_index = job.saved + 1
-                job.add_log(f"Downloading image {next_index}/{job.total}.")
+                save_index = job.saved + 1
+                attempt_index = job.saved + job.skipped + 1
+                job.add_log(f"Downloading image {attempt_index}/{job.total}.")
 
             saved_path = snatchimg.save_image(
                 url,
                 output_dir,
                 timeout=int(options.get("timeout", 20)),
                 user_agent=snatchimg.DEFAULT_USER_AGENT,
-                index=next_index,
-                total=job.total,
+                index=save_index,
+                total=original_total,
                 seen_hashes=seen_image_hashes,
+                referer=job.url,
+                skip_reasons=image_skip_reasons,
             )
 
             with jobs_lock:
@@ -157,22 +167,27 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
                     job.saved += 1
                     job.add_log(f"Saved {saved_path.name}.")
                 else:
-                    job.add_log(f"Skipped image {next_index}/{job.total}.")
+                    job.skipped += 1
+                    job.add_log(f"Skipped image {attempt_index}/{job.total}.")
                 if job.total:
-                    job.progress = 10 + int((job.saved / job.total) * 80)
+                    processed = job.saved + job.skipped
+                    job.progress = 10 + int((processed / job.total) * 80)
 
             if options.get("delay", 0.2):
                 time.sleep(float(options.get("delay", 0.2)))
 
         if job.saved == 0:
+            public_error = PUBLIC_NO_IMAGES_ERROR
+            if snatchimg.FORBIDDEN_IMAGE_SKIP in image_skip_reasons:
+                public_error = PUBLIC_FORBIDDEN_IMAGES_ERROR
             cleanup_job_files(job_id)
             with jobs_lock:
                 job.status = "error"
                 job.phase = "No images saved"
                 job.progress = 100
-                job.error = PUBLIC_NO_IMAGES_ERROR
+                job.error = public_error
                 job.zip_path = None
-                job.add_log(PUBLIC_NO_IMAGES_ERROR)
+                job.add_log(public_error)
             return
 
         if is_cancelled():
@@ -289,6 +304,7 @@ class SnatchHandler(BaseHTTPRequestHandler):
                 "phase": job.phase,
                 "total": job.total,
                 "saved": job.saved,
+                "skipped": job.skipped,
                 "progress": job.progress,
                 "logs": job.logs,
                 "error": job.error,

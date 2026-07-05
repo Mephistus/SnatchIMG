@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 import snatchimg
 
@@ -145,6 +145,20 @@ class ParserTests(unittest.TestCase):
         )
 
 
+class RequestHeaderTests(unittest.TestCase):
+    def test_browser_headers_include_accept_language_and_optional_referer(self):
+        headers = snatchimg.browser_headers(
+            "test-agent",
+            accept=snatchimg.IMAGE_ACCEPT,
+            referer="https://example.test/gallery",
+        )
+
+        self.assertEqual(headers["User-Agent"], "test-agent")
+        self.assertEqual(headers["Accept"], snatchimg.IMAGE_ACCEPT)
+        self.assertEqual(headers["Accept-Language"], snatchimg.DEFAULT_ACCEPT_LANGUAGE)
+        self.assertEqual(headers["Referer"], "https://example.test/gallery")
+
+
 class SaveImageTests(unittest.TestCase):
     def setUp(self):
         self.original_fetch = snatchimg.fetch
@@ -155,7 +169,7 @@ class SaveImageTests(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_different_urls_with_same_image_content_are_saved_once(self):
-        def fake_fetch(url, timeout, user_agent):
+        def fake_fetch(url, timeout, user_agent, **kwargs):
             return b"same image bytes", "image/jpeg"
 
         snatchimg.fetch = fake_fetch
@@ -184,6 +198,51 @@ class SaveImageTests(unittest.TestCase):
         self.assertIsNotNone(first)
         self.assertIsNone(second)
         self.assertEqual([path.name for path in output_dir.iterdir()], ["01.jpg"])
+
+    def test_save_image_uses_image_accept_and_referer(self):
+        calls = []
+
+        def fake_fetch(url, timeout, user_agent, **kwargs):
+            calls.append((url, kwargs))
+            return b"image bytes", "image/jpeg"
+
+        snatchimg.fetch = fake_fetch
+        output_dir = Path(self.temp_dir.name) / "images"
+
+        saved = snatchimg.save_image(
+            "https://cdn.example.test/photo.jpg",
+            output_dir,
+            timeout=5,
+            user_agent="test-agent",
+            index=1,
+            total=1,
+            referer="https://example.test/gallery",
+        )
+
+        self.assertIsNotNone(saved)
+        self.assertEqual(calls[0][1]["accept"], snatchimg.IMAGE_ACCEPT)
+        self.assertEqual(calls[0][1]["referer"], "https://example.test/gallery")
+
+    def test_forbidden_image_records_safe_skip_reason(self):
+        def fake_fetch(url, timeout, user_agent, **kwargs):
+            raise HTTPError(url, 403, "Forbidden", hdrs=None, fp=None)
+
+        snatchimg.fetch = fake_fetch
+        output_dir = Path(self.temp_dir.name) / "images"
+        skip_reasons = []
+
+        saved = snatchimg.save_image(
+            "https://cdn.example.test/photo.jpg",
+            output_dir,
+            timeout=5,
+            user_agent="test-agent",
+            index=1,
+            total=1,
+            skip_reasons=skip_reasons,
+        )
+
+        self.assertIsNone(saved)
+        self.assertEqual(skip_reasons, [snatchimg.FORBIDDEN_IMAGE_SKIP])
 
 
 if __name__ == "__main__":
