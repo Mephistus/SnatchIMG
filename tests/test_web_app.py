@@ -178,6 +178,41 @@ class RunJobTests(unittest.TestCase):
         self.assertEqual(job.progress, 100)
         self.assertEqual([path.name for path in image_dir.iterdir()], ["01.jpg"])
 
+    def test_skip_then_save_logs_attempt_and_saved_file_counts_separately(self):
+        job_id = "job-skip-then-save"
+        web_app.jobs[job_id] = web_app.Job(job_id, "https://example.test")
+        web_app.snatchimg.discover_images = lambda *args, **kwargs: [
+            "https://example.test/skipped.jpg",
+            "https://example.test/saved.jpg",
+        ]
+
+        def fake_save_image(url, output_dir, timeout, user_agent, index, total, **kwargs):
+            if url.endswith("skipped.jpg"):
+                return None
+            output_dir.mkdir(parents=True, exist_ok=True)
+            path = output_dir / f"{index:02d}.jpg"
+            path.write_bytes(b"image")
+            return path
+
+        def fake_make_archive(base_name, format, root_dir):
+            zip_path = Path(f"{base_name}.zip")
+            zip_path.write_bytes(b"zip")
+            return str(zip_path)
+
+        web_app.snatchimg.save_image = fake_save_image
+        web_app.shutil.make_archive = fake_make_archive
+
+        web_app.run_job(job_id, {"maxPages": 1, "delay": 0, "timeout": 5})
+
+        job = web_app.jobs[job_id]
+        self.assertEqual(job.status, "complete")
+        self.assertTrue(
+            any("Downloading discovered image 2/2." in log for log in job.logs)
+        )
+        self.assertTrue(
+            any("Saved as 01.jpg (1 saved, 1 skipped)." in log for log in job.logs)
+        )
+
     def test_forbidden_image_skips_use_friendly_public_error(self):
         job_id = "job-forbidden-images"
         web_app.jobs[job_id] = web_app.Job(job_id, "https://example.test/gallery")
