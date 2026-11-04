@@ -15,7 +15,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Callable, Iterable
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urldefrag, urljoin, urlparse
+from urllib.parse import parse_qsl, urlencode, urldefrag, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 
@@ -98,6 +98,8 @@ class ImagePageParser(HTMLParser):
         super().__init__()
         self.base_url = base_url
         self.image_urls: set[str] = set()
+        self.main_image_urls: set[str] = set()
+        self.reload_url: str | None = None
         self.linked_image_urls: set[str] = set()
         self.page_urls: set[PageLink] = set()
         self.continue_urls: set[str] = set()
@@ -117,6 +119,8 @@ class ImagePageParser(HTMLParser):
         )
 
         if tag in {"img", "source"}:
+            if tag == "img" and attr.get("id") == "img" and attr.get("src"):
+                add_image_url(self.main_image_urls, urljoin(self.base_url, attr["src"]))
             for key in ("src", "data-src", "data-original", "data-lazy-src"):
                 if key in attr:
                     add_image_url(self.image_urls, urljoin(self.base_url, attr[key]))
@@ -148,6 +152,12 @@ class ImagePageParser(HTMLParser):
                     self.continue_urls.add(candidate)
 
         if "onclick" in attr:
+            if attr.get("id") == "loadfail":
+                match = re.search(r"\bnl\(['\"]([a-zA-Z0-9_-]+)['\"]\)", attr["onclick"])
+                if match:
+                    parsed = urlparse(self.base_url)
+                    query = [(key, value) for key, value in parse_qsl(parsed.query) if key != "nl"]
+                    self.reload_url = parsed._replace(query=urlencode(query + [("nl", match.group(1))])).geturl()
             for candidate in urls_from_text(attr["onclick"], self.base_url):
                 if is_continue_image_link(candidate, label):
                     self.continue_urls.add(candidate)
@@ -264,6 +274,50 @@ def link_priority(link: PageLink, start_url: str) -> tuple[int, str]:
     return (1, link.url)
 
 
+def is_gallery_page(url: str, start_url: str) -> bool:
+    """Match the same gallery with only its numeric pagination query changed."""
+    if not same_site(url, start_url):
+        return False
+    candidate = urlparse(clean_url(url))
+    start = urlparse(clean_url(start_url))
+    if candidate.path.rstrip("/") != start.path.rstrip("/"):
+        return False
+    page_keys = {"p", "page", "pg", "offset", "start"}
+
+    def split_query(query: str) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+        pages = []
+        other = []
+        for key, value in parse_qsl(query, keep_blank_values=True):
+            if key.lower() in page_keys and value.isascii() and value.isdigit():
+                pages.append((key, value))
+            else:
+                other.append((key, value))
+        return sorted(pages), sorted(other)
+
+    candidate_pages, candidate_other = split_query(candidate.query)
+    start_pages, start_other = split_query(start.query)
+    return candidate_other == start_other and (
+        candidate_pages != start_pages or clean_url(url) == clean_url(start_url)
+    )
+
+
+def eh_gallery_id(url: str) -> str | None:
+    parsed = urlparse(url)
+    if parsed.hostname not in {"e-hentai.org", "exhentai.org"}:
+        return None
+    match = re.fullmatch(r"/g/(\d+)/[a-fA-F0-9]+/?", parsed.path)
+    return match.group(1) if match else None
+
+
+def eh_image_number(url: str, start_url: str, gallery_id: str) -> int | None:
+    if not same_site(url, start_url):
+        return None
+    parsed = urlparse(url)
+    match = re.fullmatch(r"/s/[a-fA-F0-9]+/" + re.escape(gallery_id) + r"-([1-9]\d*)", parsed.path)
+    # Ignore viewer controls that reload the same image with different queries.
+    return int(match.group(1)) if match and not parsed.query else None
+
+
 def add_image_url(urls: set[str], url: str) -> None:
     clean = clean_url(url)
     if (
@@ -376,29 +430,55 @@ def save_image(
     seen_hashes: set[str] | None = None,
     referer: str | None = None,
     skip_reasons: list[str] | None = None,
+    refresh_url: Callable[[], tuple[str, str] | None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+    on_progress: Callable[[str], None] | None = None,
+    max_attempts: int = 3,
 ) -> Path | None:
-    try:
-        body, content_type = fetch(
-            url,
-            timeout,
-            user_agent,
-            accept=IMAGE_ACCEPT,
-            referer=referer,
-        )
-    except HTTPError as exc:
-        if exc.code == 403 and skip_reasons is not None:
-            skip_reasons.append(FORBIDDEN_IMAGE_SKIP)
-        print(f"skip: {url} ({exc})")
-        return None
-    except (URLError, TimeoutError, OSError) as exc:
-        print(f"skip: {url} ({exc})")
-        return None
+    is_cancelled = should_cancel or (lambda: False)
+    report = on_progress or (lambda _message: None)
+    attempts = max(1, max_attempts)
+    for attempt in range(attempts):
+        if is_cancelled():
+            return None
+        forbidden = False
+        retryable = True
+        try:
+            body, content_type = fetch(
+                url, timeout, user_agent, accept=IMAGE_ACCEPT, referer=referer,
+            )
+            content_type = (content_type or "").lower().strip()
+            if content_type.startswith("image/"):
+                break
+            reason = "the host returned a page instead of an image"
+            print(f"image attempt failed: {url} (not an image: {content_type or 'unknown'})")
+        except HTTPError as exc:
+            forbidden = exc.code == 403
+            retryable = exc.code in {408, 429, 500, 502, 503, 504} or bool(refresh_url)
+            reason = "the image host refused the request"
+            print(f"image attempt failed: {url} ({exc})")
+        except (URLError, TimeoutError, OSError) as exc:
+            reason = "the image host could not be reached"
+            print(f"image attempt failed: {url} ({exc})")
 
-    content_type = (content_type or "").lower().strip()
-
-    if not content_type.startswith("image/"):
-        print(f"skip: {url} (not an image: {content_type or 'unknown'})")
-        return None
+        if attempt + 1 == attempts or not retryable:
+            if forbidden and skip_reasons is not None:
+                skip_reasons.append(FORBIDDEN_IMAGE_SKIP)
+            report(f"Image download failed: {reason}.")
+            return None
+        report(f"Retrying image download ({attempt + 2}/{attempts}): {reason}.")
+        # Short waits allow Stop to interrupt retries promptly.
+        for _ in range(10 * (attempt + 1)):
+            if is_cancelled():
+                return None
+            time.sleep(0.1)
+        if refresh_url and not is_cancelled():
+            try:
+                refreshed = refresh_url()
+                if refreshed:
+                    url, referer = refreshed
+            except (HTTPError, URLError, TimeoutError, OSError) as exc:
+                print(f"image link refresh failed: {exc}")
 
     digest = hashlib.sha256(body).hexdigest()
     if seen_hashes is not None:
@@ -412,6 +492,24 @@ def save_image(
     path.write_bytes(body)
     print(f"saved: {path}")
     return path
+
+
+def refresh_gallery_image(viewer_url: str, timeout: int, user_agent: str,
+                          should_cancel: Callable[[], bool] | None = None) -> tuple[str, str] | None:
+    """Refresh an E-Hentai viewer and use its load-failure action when available."""
+    is_cancelled = should_cancel or (lambda: False)
+    if is_cancelled():
+        return None
+    parser = ImagePageParser(viewer_url)
+    parser.feed(fetch_text(viewer_url, timeout, user_agent))
+    if parser.reload_url and not is_cancelled():
+        reloaded = ImagePageParser(parser.reload_url)
+        reloaded.feed(fetch_text(parser.reload_url, timeout, user_agent))
+        if reloaded.main_image_urls:
+            return sorted(reloaded.main_image_urls)[0], parser.reload_url
+    if parser.main_image_urls:
+        return sorted(parser.main_image_urls)[0], viewer_url
+    return None
 
 
 def add_found_images(found_images: list[str], seen_images: set[str], urls: Iterable[str]) -> None:
@@ -433,6 +531,9 @@ def discover_images(
     timeout: int,
     user_agent: str,
     should_cancel: Callable[[], bool] | None = None,
+    follow_gallery_pages: bool = False,
+    on_progress: Callable[[str], None] | None = None,
+    image_sources: dict[str, str] | None = None,
 ) -> list[str]:
     found_images: list[str] = []
     seen_images: set[str] = set()
@@ -441,13 +542,36 @@ def discover_images(
     is_cancelled = should_cancel or (lambda: False)
     start_page_only = max_pages == 0
     page_limit = max(1, max_pages)
+    gallery_id = eh_gallery_id(start_url)
+    gallery_limit = bool(gallery_id and follow_gallery_pages and not start_page_only)
+    listing_count = 0
+    missing_images = 0
+    limit_reached = False
+    image_pages: set[int] = set()
+    gallery_images: dict[int, str] = {}
+    report = on_progress or (lambda _message: None)
 
-    while pending and len(seen_pages) < page_limit and not is_cancelled():
+    while pending and (gallery_limit or len(seen_pages) < page_limit) and not is_cancelled():
         page_url, depth = pending.popleft()
+        if gallery_id and is_gallery_page(page_url, start_url):
+            parsed_page = urlparse(page_url)
+            query = [(key, value) for key, value in parse_qsl(parsed_page.query)
+                     if not (key == "p" and value.isdigit() and int(value) == 0)]
+            page_url = parsed_page._replace(
+                path=parsed_page.path.rstrip("/") + "/", query=urlencode(sorted(query))
+            ).geturl()
         if page_url in seen_pages:
             continue
         if not deep and not same_site(page_url, start_url):
             continue
+
+        listing_page = depth == 0 or is_gallery_page(page_url, start_url)
+        if gallery_limit and listing_page:
+            if listing_count >= page_limit:
+                limit_reached = True
+                continue
+            listing_count += 1
+            report(f"Scanning gallery page {listing_count}.")
 
         seen_pages.add(page_url)
         print(f"scan: {page_url}")
@@ -460,10 +584,44 @@ def discover_images(
                 raise PageAccessError(
                     "The page could not be accessed. The site may be blocking automated requests or requiring a browser session."
                 ) from exc
+            if gallery_id:
+                missing_images += 1
             continue
 
         parser = ImagePageParser(page_url)
         parser.feed(html)
+        gallery_page = depth == 0 or (
+            follow_gallery_pages and is_gallery_page(page_url, start_url)
+        )
+        if gallery_id and not start_page_only:
+            if listing_page:
+                # Only this gallery's viewers and pagination belong in the scan.
+                parser.page_urls = {
+                    link for link in parser.page_urls
+                    if (follow_gallery_pages and is_gallery_page(link.url, start_url))
+                    or eh_image_number(link.url, start_url, gallery_id) is not None
+                }
+                parser.image_urls.clear()
+            else:
+                number = eh_image_number(page_url, start_url, gallery_id)
+                if number in image_pages:
+                    continue
+                if number is not None:
+                    image_pages.add(number)
+                parser.page_urls.clear()
+                parser.image_urls = parser.main_image_urls
+                if number is not None and parser.main_image_urls:
+                    gallery_images[number] = sorted(parser.main_image_urls)[0]
+                    if image_sources is not None:
+                        image_sources[gallery_images[number]] = page_url
+                if not parser.image_urls:
+                    missing_images += 1
+                if len(image_pages) % 20 == 0:
+                    report(f"Checked {len(image_pages)} gallery image pages; found {len(found_images) + len(parser.image_urls)} images.")
+            # fullimg links can return HTML, and viewer navigation has UI assets.
+            parser.linked_image_urls.clear()
+            parser.continue_urls.clear()
+            parser.continue_posts.clear()
         posted_parsers: list[ImagePageParser] = []
         if deep:
             for post in sorted(parser.continue_posts, key=lambda item: item.url):
@@ -500,7 +658,7 @@ def discover_images(
             for post in sorted(parser.continue_posts, key=lambda item: item.url):
                 field_names = ", ".join(name for name, _ in post.data)
                 print(f"  continue form: {post.url} [{field_names}]")
-        if start_page_only or not (links_only and depth == 0):
+        if start_page_only or not (links_only and gallery_page):
             add_found_images(found_images, seen_images, parser.image_urls)
         add_found_images(found_images, seen_images, parser.linked_image_urls)
         for posted_parser in posted_parsers:
@@ -513,14 +671,22 @@ def discover_images(
                 elif url not in seen_pages:
                     pending.append((url, depth + 1))
 
+        if follow_gallery_pages and gallery_page:
+            for link in sorted(parser.page_urls, key=lambda item: item.url):
+                if link.url not in seen_pages and is_gallery_page(link.url, start_url):
+                    pending.append((link.url, depth + 1))
+
         if crawl:
             for link in sorted(parser.page_urls, key=lambda item: item.url):
                 if link.url not in seen_pages and same_site(link.url, start_url):
                     pending.append((link.url, depth + 1))
-        elif deep and depth == 0:
+        elif deep and gallery_page:
             links = sorted(
                 parser.page_urls,
-                key=lambda item: link_priority(item, start_url),
+                key=lambda item: (
+                    (0, eh_image_number(item.url, start_url, gallery_id) or 0, item.url)
+                    if gallery_id else link_priority(item, start_url)
+                ),
             )
             if links_only:
                 links = [
@@ -533,6 +699,15 @@ def discover_images(
         if delay:
             time.sleep(delay)
 
+    if gallery_id and not start_page_only and not is_cancelled():
+        if limit_reached or (pending and not gallery_limit):
+            report("Scan incomplete: Max pages was reached. Increase Max pages and try again.")
+        if missing_images:
+            report(f"Scan incomplete: {missing_images} gallery pages could not be read or had no main image.")
+        report(f"Found {len(found_images)} gallery images.")
+        # Pagination links can be listed out of order; keep the archive in page order.
+        if gallery_images:
+            return list(dict.fromkeys(gallery_images[number] for number in sorted(gallery_images)))
     return found_images
 
 

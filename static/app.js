@@ -5,6 +5,7 @@ const detailsPanel = document.querySelector("#detailsPanel");
 const maxPagesInput = document.querySelector("#maxPagesInput");
 const deepInput = document.querySelector("#deepInput");
 const linksOnlyInput = document.querySelector("#linksOnlyInput");
+const followGalleryPagesInput = document.querySelector("#followGalleryPagesInput");
 const phaseText = document.querySelector("#phaseText");
 const countText = document.querySelector("#countText");
 const meterFill = document.querySelector("#meterFill");
@@ -100,6 +101,7 @@ function setRunningState(running) {
   maxPagesInput.disabled = running;
   deepInput.disabled = running;
   linksOnlyInput.disabled = running;
+  followGalleryPagesInput.disabled = running;
   snatchButton.disabled = false;
   snatchButton.classList.toggle("is-danger", running);
   snatchButton.title = running ? "Stop download" : "Snatch images";
@@ -281,6 +283,7 @@ async function startJob() {
       maxPages: Number(maxPagesInput.value || 200),
       deep: deepInput.checked,
       linksOnly: linksOnlyInput.checked,
+      followGalleryPages: followGalleryPagesInput.checked,
     }),
   });
 

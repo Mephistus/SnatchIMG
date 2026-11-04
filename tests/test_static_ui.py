@@ -59,7 +59,8 @@ class StaticUiStructureTests(unittest.TestCase):
 
         self.assertEqual(
             set(tips_by_label),
-            {"Max pages info", "Deep option info", "Links only option info"},
+            {"Max pages info", "Deep option info", "Links only option info",
+             "Follow gallery pages info"},
         )
         self.assertIn("same-site pages", tips_by_label["Max pages info"])
         self.assertIn("Use 0", tips_by_label["Max pages info"])

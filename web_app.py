@@ -81,6 +81,10 @@ def cleanup_job_files(job_id: str) -> None:
 
 
 def run_job(job_id: str, options: dict[str, Any]) -> None:
+    def report_scan(message: str) -> None:
+        with jobs_lock:
+            jobs[job_id].add_log(message)
+
     def is_cancelled() -> bool:
         with jobs_lock:
             return jobs[job_id].cancel_requested
@@ -103,6 +107,7 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
     zip_base = RUNS_DIR / job_id / "snatchimg_images"
     seen_image_hashes: set[str] = set()
     image_skip_reasons: list[str] = []
+    image_sources: dict[str, str] = {}
 
     try:
         images = snatchimg.discover_images(
@@ -110,12 +115,15 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
             crawl=bool(options.get("crawl", False)),
             deep=bool(options.get("deep", True)),
             links_only=bool(options.get("linksOnly", True)),
+            follow_gallery_pages=bool(options.get("followGalleryPages", False)),
             verbose=False,
             max_pages=int(options.get("maxPages", 200)),
             delay=float(options.get("delay", 0.2)),
             timeout=int(options.get("timeout", 20)),
             user_agent=snatchimg.DEFAULT_USER_AGENT,
             should_cancel=is_cancelled,
+            on_progress=report_scan,
+            image_sources=image_sources,
         )
         images = list(dict.fromkeys(images))
 
@@ -150,6 +158,13 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
                 attempt_index = job.saved + job.skipped + 1
                 job.add_log(f"Downloading discovered image {attempt_index}/{job.total}.")
 
+            viewer_url = image_sources.get(url)
+            refresh_url = None
+            if viewer_url:
+                refresh_url = lambda: snatchimg.refresh_gallery_image(
+                    viewer_url, int(options.get("timeout", 20)),
+                    snatchimg.DEFAULT_USER_AGENT, should_cancel=is_cancelled,
+                )
             saved_path = snatchimg.save_image(
                 url,
                 output_dir,
@@ -158,9 +173,16 @@ def run_job(job_id: str, options: dict[str, Any]) -> None:
                 index=save_index,
                 total=original_total,
                 seen_hashes=seen_image_hashes,
-                referer=job.url,
+                referer=viewer_url or job.url,
                 skip_reasons=image_skip_reasons,
+                refresh_url=refresh_url,
+                should_cancel=is_cancelled,
+                on_progress=report_scan,
             )
+
+            if is_cancelled():
+                finish_cancelled()
+                return
 
             with jobs_lock:
                 if saved_path:
