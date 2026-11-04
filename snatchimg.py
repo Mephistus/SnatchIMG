@@ -102,6 +102,7 @@ class ImagePageParser(HTMLParser):
         self.reload_url: str | None = None
         self.linked_image_urls: set[str] = set()
         self.page_urls: set[PageLink] = set()
+        self.page_url_order: dict[str, int] = {}
         self.continue_urls: set[str] = set()
         self.continue_posts: set[FormPost] = set()
         self._active_anchor_href: str | None = None
@@ -121,6 +122,12 @@ class ImagePageParser(HTMLParser):
         if tag in {"img", "source"}:
             if tag == "img" and attr.get("id") == "img" and attr.get("src"):
                 add_image_url(self.main_image_urls, urljoin(self.base_url, attr["src"]))
+            if tag == "img" and attr.get("id") == "mainPhoto":
+                for key in ("data-original", "data-src", "src"):
+                    if attr.get(key):
+                        candidate = urljoin(self.base_url, attr[key])
+                        if is_imagefap_original(candidate):
+                            add_image_url(self.main_image_urls, candidate)
             for key in ("src", "data-src", "data-original", "data-lazy-src"):
                 if key in attr:
                     add_image_url(self.image_urls, urljoin(self.base_url, attr[key]))
@@ -163,12 +170,18 @@ class ImagePageParser(HTMLParser):
                     self.continue_urls.add(candidate)
 
         if tag == "a" and "href" in attr:
+            photo = re.fullmatch(r"/photo/(\d+)(?:/.*)?", urlparse(self.base_url).path)
+            if photo and attr.get("imageid") == photo.group(1):
+                original = urljoin(self.base_url, attr.get("original") or attr["href"])
+                if is_imagefap_original(original):
+                    add_image_url(self.main_image_urls, original)
             href = clean_url(urljoin(self.base_url, attr["href"]))
             if href.startswith(("http://", "https://")):
                 if looks_like_image_url(href):
                     add_image_url(self.linked_image_urls, href)
                 else:
                     self.page_urls.add(PageLink(href, label.strip()))
+                    self.page_url_order.setdefault(href, len(self.page_url_order))
                     self._active_anchor_href = href
                     self._active_anchor_words = [label]
 
@@ -307,6 +320,62 @@ def eh_gallery_id(url: str) -> str | None:
         return None
     match = re.fullmatch(r"/g/(\d+)/[a-fA-F0-9]+/?", parsed.path)
     return match.group(1) if match else None
+
+
+def is_imagefap_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return parsed.scheme in {"http", "https"} and parsed.hostname in {"imagefap.com", "www.imagefap.com"}
+
+
+def is_imagefap_original(url: str) -> bool:
+    parsed = urlparse(url)
+    host = parsed.hostname or ""
+    return parsed.scheme in {"http", "https"} and (
+        host == "imagefap.com" or host.endswith(".imagefap.com")
+    ) and parsed.path.startswith("/images/full/")
+
+
+def imagefap_gallery_id(url: str) -> str | None:
+    if not is_imagefap_url(url):
+        return None
+    parsed = urlparse(url)
+    query = dict(parse_qsl(parsed.query))
+    match = re.fullmatch(r"/(?:pictures|gallery)/(\d+)(?:/.*)?", parsed.path)
+    if match:
+        gallery_id = match.group(1)
+        return gallery_id if query.get("gid", gallery_id) == gallery_id else None
+    if parsed.path == "/gallery.php" and re.fullmatch(r"[0-9]+", query.get("gid", "")):
+        return query["gid"]
+    return None
+
+
+def imagefap_listing_page(url: str, gallery_id: str) -> int | None:
+    if imagefap_gallery_id(url) != gallery_id:
+        return None
+    parsed = urlparse(url)
+    pairs = parse_qsl(parsed.query, keep_blank_values=True)
+    query = dict(pairs)
+    if len(pairs) != len(query) or set(query) - {"gid", "page", "view"}:
+        return None
+    # view=2 is an alternate all-images view, not another numbered page.
+    if query.get("view", "0") != "0":
+        return None
+    page = query.get("page", "0")
+    return int(page) if re.fullmatch(r"[0-9]+", page) else None
+
+
+def imagefap_photo_id(url: str, gallery_id: str) -> str | None:
+    if not is_imagefap_url(url):
+        return None
+    parsed = urlparse(url)
+    pairs = parse_qsl(parsed.query, keep_blank_values=True)
+    query = dict(pairs)
+    if len(pairs) != len(query) or set(query) - {"gid", "page", "pgid"}:
+        return None
+    if not re.fullmatch(r"[0-9]+", query.get("page", "0")):
+        return None
+    match = re.fullmatch(r"/photo/(\d+)(?:/.*)?", parsed.path)
+    return match.group(1) if match and query.get("gid") == gallery_id else None
 
 
 def eh_image_number(url: str, start_url: str, gallery_id: str) -> int | None:
@@ -496,7 +565,7 @@ def save_image(
 
 def refresh_gallery_image(viewer_url: str, timeout: int, user_agent: str,
                           should_cancel: Callable[[], bool] | None = None) -> tuple[str, str] | None:
-    """Refresh an E-Hentai viewer and use its load-failure action when available."""
+    """Refresh a supported gallery viewer and its load-failure action if available."""
     is_cancelled = should_cancel or (lambda: False)
     if is_cancelled():
         return None
@@ -519,6 +588,80 @@ def add_found_images(found_images: list[str], seen_images: set[str], urls: Itera
             found_images.append(url)
 
 
+def discover_imagefap_images(
+    start_url: str, gallery_id: str, *, deep: bool, follow_gallery_pages: bool,
+    max_pages: int, delay: float, timeout: int, user_agent: str,
+    should_cancel: Callable[[], bool] | None,
+    on_progress: Callable[[str], None] | None,
+    image_sources: dict[str, str] | None,
+) -> list[str]:
+    if not deep:
+        raise UserFacingError("Enable Deep to download full-size images from this gallery.")
+    is_cancelled = should_cancel or (lambda: False)
+    report = on_progress or (lambda _message: None)
+    pending = deque([start_url])
+    queued = {imagefap_listing_page(start_url, gallery_id)}
+    viewers: dict[str, str] = {}
+    scanned = 0
+    missing = 0
+    limit = max(1, max_pages) if follow_gallery_pages else 1
+    while pending and scanned < limit and not is_cancelled():
+        url = pending.popleft()
+        scanned += 1
+        report(f"Scanning gallery page {scanned}.")
+        try:
+            html = fetch_text(url, timeout, user_agent)
+        except (HTTPError, URLError, TimeoutError, OSError) as exc:
+            print(f"skip gallery page: {url} ({exc})")
+            if scanned == 1:
+                raise PageAccessError("The page could not be accessed. The site may be blocking automated requests or requiring a browser session.") from exc
+            missing += 1
+            continue
+        parser = ImagePageParser(url)
+        parser.feed(html)
+        # HTML order preserves the gallery's order; numeric photo IDs do not.
+        for link in sorted(parser.page_urls, key=lambda item: parser.page_url_order[item.url]):
+            photo_id = imagefap_photo_id(link.url, gallery_id)
+            if photo_id:
+                viewers.setdefault(photo_id, link.url)
+            if follow_gallery_pages:
+                page = imagefap_listing_page(link.url, gallery_id)
+                if page is not None and page not in queued:
+                    queued.add(page)
+                    pending.append(link.url)
+        if delay and not is_cancelled():
+            time.sleep(delay)
+    images: list[str] = []
+    seen: set[str] = set()
+    for index, viewer in enumerate(viewers.values(), 1):
+        if is_cancelled():
+            return images
+        try:
+            parser = ImagePageParser(viewer)
+            parser.feed(fetch_text(viewer, timeout, user_agent))
+        except (HTTPError, URLError, TimeoutError, OSError) as exc:
+            print(f"skip image page: {viewer} ({exc})")
+            missing += 1
+            continue
+        if parser.main_image_urls:
+            image = sorted(parser.main_image_urls)[0]
+            add_found_images(images, seen, (image,))
+            if image_sources is not None:
+                image_sources[image] = viewer
+        else:
+            missing += 1
+        report(f"Checked {index}/{len(viewers)} gallery image pages; found {len(images)} images.")
+        if delay and not is_cancelled():
+            time.sleep(delay)
+    if not is_cancelled():
+        if pending:
+            report("Scan incomplete: Max pages was reached. Increase Max pages and try again.")
+        if missing:
+            report(f"Scan incomplete: {missing} gallery pages could not be read or had no main image.")
+        report(f"Found {len(images)} gallery images.")
+    return images
+
+
 def discover_images(
     start_url: str,
     *,
@@ -535,6 +678,13 @@ def discover_images(
     on_progress: Callable[[str], None] | None = None,
     image_sources: dict[str, str] | None = None,
 ) -> list[str]:
+    imagefap_id = imagefap_gallery_id(start_url)
+    if imagefap_id and max_pages != 0:
+        return discover_imagefap_images(
+            start_url, imagefap_id, deep=deep, follow_gallery_pages=follow_gallery_pages,
+            max_pages=max_pages, delay=delay, timeout=timeout, user_agent=user_agent,
+            should_cancel=should_cancel, on_progress=on_progress, image_sources=image_sources,
+        )
     found_images: list[str] = []
     seen_images: set[str] = set()
     seen_pages: set[str] = set()

@@ -13,7 +13,7 @@ from the web UI.
 - Browser-like request headers and referer support for image downloads.
 - Duplicate image-content detection using hashes.
 - Failed image downloads retry up to three attempts, with short waits. E-Hentai
-  retries refresh the viewer's image link and use its load-failure action when
+  and ImageFap retries refresh the viewer's image link and use its load-failure action when
   available. Retry messages appear in the progress log, and Stop cancels retries.
 - Clear saved/skipped counters and progress logs.
 - Friendly public errors for common blocked-image cases.
@@ -69,6 +69,11 @@ Generated run files and ZIPs are stored under `.snatchimg_runs`.
   gallery and only the main viewer image is collected. With this option enabled,
   `Max pages` counts gallery listing pages, with their image pages included
   automatically. The progress log reports scan limits and unreadable pages.
+- ImageFap galleries support `/pictures/ID/...`, `/gallery/ID`, and
+  `/gallery.php?gid=ID`. Enable `Deep` and `Follow gallery pages` to scan the
+  gallery's numbered pages. `Max pages` counts listing pages. Downloads use
+  the current photo's signed original URL, excluding thumbnails, ads, and
+  neighboring galleries; failed downloads refresh the original URL.
 - `Deep`: follows image-detail links and continue/open-image actions to find
   full-size images.
 - `Links only`: with deep scans, starts from linked gallery/image pages instead
